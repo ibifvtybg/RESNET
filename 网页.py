@@ -225,14 +225,13 @@ def predict():
         feature_values = [user_inputs[feat] for feat in FEATURES]
         features_array = np.array([feature_values])
         st.write(f"features_array shape: {features_array.shape}")
-        # 调试输出特征值，查看 PM2.5 等是否正确获取
         st.write(f"feature_values: {feature_values}") 
 
         # 标准化输入
         features_scaled = scaler.transform(features_array)
         st.write(f"features_scaled shape: {features_scaled.shape}")
-        # 将标准化后的特征转换为张量，并设置 requires_grad=True
-        features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True)
+        # 将标准化后的特征转换为张量，并设置 requires_grad=True 且克隆
+        features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
         st.write(f"features_tensor shape: {features_tensor.shape}")
 
         # 模型预测
@@ -261,8 +260,8 @@ def predict():
         X_train_scaled = st.session_state['X_train_scaled']
         st.write(f"X_train_scaled shape: {X_train_scaled.shape}")
 
-        # 将训练数据转换为张量，并设置 requires_grad=True
-        background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32, requires_grad=True)
+        # 将训练数据转换为张量，并设置 requires_grad=True 且克隆
+        background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32, requires_grad=True).clone()
         st.write(f"background_tensor shape: {background_tensor.shape}")
 
         # 使用 DeepExplainer 解释深度学习模型
@@ -351,7 +350,7 @@ def predict():
     except IndexError as ie:
         st.write(f"<div style='color: red;'>预测过程中索引错误：{ie}</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}，请检查特征数据与模型设置</div>", unsafe_allow_html=True)
+        st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
 
 
 if st.button("预测", key="predict_button"):
