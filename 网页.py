@@ -260,13 +260,15 @@ def predict():
         X_train_scaled = st.session_state['X_train_scaled']
         st.write(f"X_train_scaled shape: {X_train_scaled.shape}")
 
-        # 将训练数据转换为张量，并设置 requires_grad=True 且克隆
+        # 确保克隆
         background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32, requires_grad=True).clone()
-        st.write(f"background_tensor shape: {background_tensor.shape}")
+        features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
 
-        # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
         shap_values = explainer.shap_values(features_tensor)
+        # 若后续对 shap_values 操作，避免原地修改，必要时克隆
+        shap_values = shap_values.clone() if isinstance(shap_values, torch.Tensor) else [val.clone() for val in shap_values] 
+
         if isinstance(shap_values, list):
             st.write(f"shap_values is a list of length {len(shap_values)}")
             for i, val in enumerate(shap_values):
