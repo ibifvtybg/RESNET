@@ -116,28 +116,29 @@ st.markdown('<div class="title">空气质量指数预测</div>', unsafe_allow_ht
 class ResidualBlock(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(ResidualBlock, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size, bias=True)
-        self.fc2 = nn.Linear(hidden_size, input_size, bias=True)
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, input_size)
         self.leaky_relu = nn.LeakyReLU(0.01)
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
-        residual = x.clone()  # 克隆残差连接避免视图问题
+        residual = x.clone()
         out = self.leaky_relu(self.fc1(x))
+        out = out.clone()
         out = self.dropout(out)
         out = self.fc2(out)
-        out += residual  # 加法会创建新张量，避免原地修改
+        out += residual
         return out
 
 class MultiDimensionalResNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(MultiDimensionalResNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size, bias=True)
+        self.fc1 = nn.Linear(input_size, hidden_size)
         self.residual_block1 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block2 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block3 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block4 = ResidualBlock(hidden_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, num_classes, bias=True)
+        self.fc2 = nn.Linear(hidden_size, num_classes)
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
@@ -155,8 +156,9 @@ def load_artifacts():
     try:
         model = joblib.load('RESNET.pkl')
         scaler = joblib.load('scaler.pkl')
-        X_train_scaled = joblib.load('X_train.pkl')  # 假设此处为标准化后的特征
-        st.session_state['X_train_scaled'] = X_train_scaled.copy()  # 确保为独立副本
+        X_train_scaled = joblib.load('X_train.pkl')
+        st.session_state['X_train_scaled'] = X_train_scaled
+        st.write("训练数据 X_train_scaled 已成功加载。")
         return model, scaler
     except Exception as e:
         st.error(f"加载模型或标准化器失败：{str(e)}")
@@ -225,12 +227,11 @@ def predict():
         feature_values = [user_inputs[feat] for feat in FEATURES]
         features_array = np.array([feature_values])
         st.write(f"features_array shape: {features_array.shape}")
-        st.write(f"feature_values: {feature_values}") 
+        st.write(f"feature_values: {feature_values}")
 
         # 标准化输入
         features_scaled = scaler.transform(features_array)
         st.write(f"features_scaled shape: {features_scaled.shape}")
-        # 将标准化后的特征转换为张量，并设置 requires_grad=True 且克隆
         features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
         st.write(f"features_tensor shape: {features_tensor.shape}")
 
@@ -254,21 +255,19 @@ def predict():
         }[predicted_category]
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
-        # 假设 X_train_scaled 是训练集特征（需在全局或 session_state 中定义）
+        # 检查训练数据是否加载
         if 'X_train_scaled' not in st.session_state:
-            raise ValueError("未找到训练数据 X_train_scaled，请先加载数据")
+            st.write(f"<div style='color: red;'>训练数据 X_train_scaled 未加载，请重新启动应用。</div>", unsafe_allow_html=True)
+            return
+
         X_train_scaled = st.session_state['X_train_scaled']
         st.write(f"X_train_scaled shape: {X_train_scaled.shape}")
-
-        # 确保克隆
         background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32, requires_grad=True).clone()
-        features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
+        st.write(f"background_tensor shape: {background_tensor.shape}")
 
+        # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
         shap_values = explainer.shap_values(features_tensor)
-        # 若后续对 shap_values 操作，避免原地修改，必要时克隆
-        shap_values = shap_values.clone() if isinstance(shap_values, torch.Tensor) else [val.clone() for val in shap_values] 
-
         if isinstance(shap_values, list):
             st.write(f"shap_values is a list of length {len(shap_values)}")
             for i, val in enumerate(shap_values):
@@ -354,8 +353,7 @@ def predict():
     except Exception as e:
         st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
 
-
-if st.button("预测", key="predict_button"):
+if st.button("进行预测"):
     predict()
 
 st.markdown('<div class="footer">© 2024 All rights reserved.</div>', unsafe_allow_html=True)
