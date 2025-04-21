@@ -9,11 +9,14 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
 
-# 设置中文字体
+# 检查字体文件路径是否存在
 font_path = "SimHei.ttf"
-font_prop = FontProperties(fname=font_path, size=20)
-plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
-plt.rcParams['axes.unicode_minus'] = False
+if fm.findfont(FontProperties(fname=font_path)):
+    font_prop = FontProperties(fname=font_path, size=20)
+    plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
+    plt.rcParams['axes.unicode_minus'] = False
+else:
+    st.warning("未找到字体文件 SimHei.ttf，可能会影响中文显示。")
 
 # 添加蓝色主题的 CSS 样式
 st.markdown("""
@@ -152,8 +155,9 @@ def load_artifacts():
     try:
         model = joblib.load('RESNET.pkl')
         scaler = joblib.load('scaler.pkl')
-        X_train = joblib.load('X_train.pkl')
-        st.session_state['X_train'] = X_train
+        # 确保加载的是标准化后的 X_train
+        X_train_scaled = joblib.load('X_train_scaled.pkl')
+        st.session_state['X_train_scaled'] = X_train_scaled
         return model, scaler
     except Exception as e:
         st.error(f"加载模型或标准化器失败：{str(e)}")
@@ -250,16 +254,13 @@ def predict():
         }[predicted_category]
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
-        # 假设 X_train 是训练集特征（需在全局或 session_state 中定义）
-        if 'X_train' not in st.session_state:
-            raise ValueError("未找到训练数据 X_train，请先加载数据")
-        X_train = st.session_state['X_train']
-        st.write(f"X_train shape: {X_train.shape}")
+        # 假设 X_train_scaled 是训练集特征（需在全局或 session_state 中定义）
+        if 'X_train_scaled' not in st.session_state:
+            raise ValueError("未找到训练数据 X_train_scaled，请先加载数据")
+        X_train_scaled = st.session_state['X_train_scaled']
+        st.write(f"X_train_scaled shape: {X_train_scaled.shape}")
 
-        # 标准化背景数据
-        background_scaled = scaler.transform(X_train)
-        st.write(f"background_scaled shape: {background_scaled.shape}")
-        background_tensor = torch.tensor(background_scaled, dtype=torch.float32)
+        background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32)
         st.write(f"background_tensor shape: {background_tensor.shape}")
 
         # 使用 DeepExplainer 解释深度学习模型
