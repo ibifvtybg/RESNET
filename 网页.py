@@ -143,13 +143,14 @@ class MultiDimensionalResNet(nn.Module):
 
     def forward(self, x):
         x = self.dropout(self.fc1(x))
+        x = x.clone()  # 检查线性层fc1计算后克隆
         x = self.residual_block1(x)
         x = self.residual_block2(x)
         x = self.residual_block3(x)
         x = self.residual_block4(x)
         x = self.fc2(x)
         return x
-
+        
 # 加载模型和标准化器
 @st.cache_resource
 def load_artifacts():
