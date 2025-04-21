@@ -265,6 +265,7 @@ def predict():
         # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
         shap_values = explainer.shap_values(features_tensor)
+        st.write(shap_values.shape)
 
         # 处理分类模型的 SHAP 值列表
         if isinstance(shap_values, list):
