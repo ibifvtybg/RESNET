@@ -237,45 +237,52 @@ def predict():
             prediction_logits = model(features_tensor)
             predicted_proba = torch.softmax(prediction_logits, dim=1).numpy()[0]
             predicted_class = np.argmax(predicted_proba)
-        predicted_category = category_mapping[predicted_class]
-        st.markdown(f"<div class='prediction-result'>预测类别：{predicted_category}</div>", unsafe_allow_html=True)
+            predicted_category = category_mapping[predicted_class]
+            st.markdown(f"<div class='prediction-result'>预测类别：{predicted_category}</div>", unsafe_allow_html=True)
 
-        # 生成建议
-        probability = predicted_proba[predicted_class] * 100
-        advice = {
-            '严重污染': f"建议：模型预测为严重污染的概率为 {probability:.1f}%，请减少户外活动...",
-            # 其他类别建议保持不变...
-        }[predicted_category]
-        st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
+            # 根据预测结果生成建议
+            probability = predicted_proba[predicted_class] * 100
+            advice = {
+                '严重污染': f"建议：模型预测为严重污染的概率为 {probability:.1f}%，请减少户外活动...",
+                '重度污染': f"建议：模型预测为重度污染的概率为 {probability:.1f}%，请佩戴口罩并减少外出...",
+                '中度污染': f"建议：模型预测为中度污染的概率为 {probability:.1f}%，敏感人群减少户外活动...",
+                '轻度污染': f"建议：模型预测为轻度污染的概率为 {probability:.1f}%，适当注意防护...",
+                '良': f"建议：模型预测为良的概率为 {probability:.1f}%，可正常进行户外活动...",
+                '优': f"建议：模型预测为优的概率为 {probability:.1f}%，空气质量良好，可尽情享受户外...",
+            }[predicted_category]
+            st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
-        # 加载训练数据并转换为克隆后的张量
-        if 'X_train_scaled' not in st.session_state:
-            raise ValueError("未找到训练数据 X_train_scaled")
-        X_train_scaled = st.session_state['X_train_scaled']
-        background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32).clone()  # 关键：克隆张量
-        st.write(f"background_tensor shape: {background_tensor.shape}")
+            # 加载训练数据并转换为克隆后的张量
+            if 'X_train_scaled' not in st.session_state:
+                raise ValueError("未找到训练数据 X_train_scaled")
+            X_train_scaled = st.session_state['X_train_scaled']
+            background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32).clone()  # 关键：克隆张量
+            st.write(f"background_tensor shape: {background_tensor.shape}")
 
-        # SHAP 解释器（模型需保持评估模式）
-        explainer = shap.DeepExplainer(model, background_tensor)
-        shap_values = explainer.shap_values(features_tensor)
+            # SHAP 解释器（模型需保持评估模式）
+            explainer = shap.DeepExplainer(model, background_tensor)
+            shap_values = explainer.shap_values(features_tensor)
 
-        # 处理 SHAP 值（保持原有逻辑）
-        if isinstance(shap_values, list):
-            shap_values = shap_values[predicted_class]
-        shap_values = np.array(shap_values).flatten()
+            # 处理 SHAP 值（保持原有逻辑）
+            if isinstance(shap_values, list):
+                shap_values = shap_values[predicted_class]
+            shap_values = np.array(shap_values).flatten()
 
-        # 绘制瀑布图（保持原有逻辑）
-        shap_importance = pd.DataFrame({
-            'feature': FEATURES,
-            'shap_value': shap_values
-        }).sort_values('abs_value', ascending=False)
-        # ... 瀑布图绘制代码与原逻辑一致 ...
+            # 绘制瀑布图（保持原有逻辑）
+            shap_importance = pd.DataFrame({
+                'feature': FEATURES,
+                'shap_value': shap_values
+            }).sort_values('abs_value', ascending=False)
+            # ... 瀑布图绘制代码与原逻辑一致 ...
 
-        # 显示图表
-        st.image("shap_waterfall_plot.png")
+            # 显示图表
+            plt.savefig("shap_waterfall_plot.png", bbox_inches='tight', dpi=1200)
+            st.image("shap_waterfall_plot.png")
 
+    except ValueError as ve:
+        st.write(f"<div style='color: red;'>预测错误：{ve}</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.write(f"<div style='color: red;'>预测错误：{str(e)}</div>", unsafe_allow_html=True)
+        st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
 
 
 if st.button("预测", key="predict_button"):
