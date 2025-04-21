@@ -220,18 +220,24 @@ def predict():
         }
         feature_values = [user_inputs[feat] for feat in FEATURES]
         features_array = np.array([feature_values])
+        st.write(f"features_array shape: {features_array.shape}")
 
         # 标准化输入
         features_scaled = scaler.transform(features_array)
+        st.write(f"features_scaled shape: {features_scaled.shape}")
         features_tensor = torch.tensor(features_scaled, dtype=torch.float32)
+        st.write(f"features_tensor shape: {features_tensor.shape}")
 
         # 模型预测
         with torch.no_grad():
             prediction_logits = model(features_tensor)
+            st.write(f"prediction_logits shape: {prediction_logits.shape}")
             predicted_proba = torch.softmax(prediction_logits, dim=1).numpy()[0]
+            st.write(f"predicted_proba shape: {predicted_proba.shape}")
 
         # 获取预测类别
         predicted_class = np.argmax(predicted_proba)
+        st.write(f"predicted_class: {predicted_class}")
         predicted_category = category_mapping[predicted_class]
 
         # 根据预测结果生成建议
@@ -257,22 +263,37 @@ def predict():
         if 'X_train' not in st.session_state:
             raise ValueError("未找到训练数据 X_train，请先加载数据")
         X_train = st.session_state['X_train']
+        st.write(f"X_train shape: {X_train.shape}")
 
         # 标准化背景数据
         background_scaled = scaler.transform(X_train)
+        st.write(f"background_scaled shape: {background_scaled.shape}")
         background_tensor = torch.tensor(background_scaled, dtype=torch.float32)
+        st.write(f"background_tensor shape: {background_tensor.shape}")
 
         # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
         shap_values = explainer.shap_values(features_tensor)
-        st.write(shap_values.shape)
+        if isinstance(shap_values, list):
+            st.write(f"shap_values is a list of length {len(shap_values)}")
+            for i, val in enumerate(shap_values):
+                st.write(f"shap_values[{i}] shape: {val.shape}")
+        else:
+            st.write(f"shap_values shape: {shap_values.shape}")
 
         # 处理分类模型的 SHAP 值列表
+        st.write(f"predicted_class for SHAP selection: {predicted_class}")
         if isinstance(shap_values, list):
-            shap_values = shap_values[predicted_class]
+            try:
+                shap_values = shap_values[predicted_class]
+                st.write(f"Selected shap_values shape: {shap_values.shape}")
+            except IndexError as e:
+                st.write(f"IndexError occurred while accessing shap_values[{predicted_class}]: {e}")
+                raise
 
         # 转换为 numpy 数组并展平
         shap_values = np.array(shap_values).flatten()
+        st.write(f"Flattened shap_values shape: {shap_values.shape}")
 
         # 计算特征重要性
         shap_importance = pd.DataFrame({
@@ -339,3 +360,4 @@ if st.button("预测", key="predict_button"):
     predict()
 
 st.markdown('<div class="footer">© 2024 All rights reserved.</div>', unsafe_allow_html=True)
+    
