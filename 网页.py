@@ -9,6 +9,44 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
 
+# 定义 ResidualBlock 类
+class ResidualBlock(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(ResidualBlock, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, input_size)
+        self.leaky_relu = nn.LeakyReLU(0.01)
+        self.dropout = nn.Dropout(0.5)
+
+    def forward(self, x):
+        residual = x
+        out = self.leaky_relu(self.fc1(x))
+        out = self.dropout(out)
+        out = self.fc2(out)
+        out += residual
+        return out
+
+# 定义 MultiDimensionalResNet 类
+class MultiDimensionalResNet(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes):
+        super(MultiDimensionalResNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.residual_block1 = ResidualBlock(hidden_size, hidden_size)
+        self.residual_block2 = ResidualBlock(hidden_size, hidden_size)
+        self.residual_block3 = ResidualBlock(hidden_size, hidden_size)
+        self.residual_block4 = ResidualBlock(hidden_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, num_classes)
+        self.dropout = nn.Dropout(0.5)
+
+    def forward(self, x):
+        x = self.dropout(self.fc1(x))
+        x = self.residual_block1(x)
+        x = self.residual_block2(x)
+        x = self.residual_block3(x)
+        x = self.residual_block4(x)
+        x = self.fc2(x)
+        return x
+
 # 设置中文字体
 font_path = "SimHei.ttf"
 font_prop = FontProperties(fname=font_path, size=20)
