@@ -126,7 +126,6 @@ class ResidualBlock(nn.Module):
         out += residual
         return out
 
-# 定义 MultiDimensionalResNet 类
 class MultiDimensionalResNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(MultiDimensionalResNet, self).__init__()
@@ -135,7 +134,7 @@ class MultiDimensionalResNet(nn.Module):
         self.residual_block2 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block3 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block4 = ResidualBlock(hidden_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, 6)  # 假设是 6 类空气质量分类
+        self.fc2 = nn.Linear(hidden_size, num_classes)  # 输出维度为6，对应分类类别数
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
@@ -153,7 +152,6 @@ def load_artifacts():
     try:
         model = joblib.load('RESNET.pkl')
         scaler = joblib.load('scaler.pkl')
-        # 假设训练数据存储在 'X_train.pkl' 文件中，需根据实际情况修改
         X_train = joblib.load('X_train.pkl')
         st.session_state['X_train'] = X_train
         return model, scaler
