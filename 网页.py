@@ -21,20 +21,20 @@ else:
 # 添加蓝色主题的 CSS 样式
 st.markdown("""
     <style>
-   .main {
+  .main {
         background-color: #007BFF;
         background-image: url('https://www.transparenttextures.com/patterns/light_blue_fabric.png');
         color: #ffffff;
         font-family: 'Arial', sans-serif;
     }
-   .title {
+  .title {
         font-size: 48px;
         color: #808080;
         font-weight: bold;
         text-align: center;
         margin-bottom: 30px;
     }
-   .subheader {
+  .subheader {
         font-size: 28px;
         color: #99CCFF;
         margin-bottom: 25px;
@@ -43,13 +43,13 @@ st.markdown("""
         padding-bottom: 10px;
         margin-top: 20px;
     }
-   .input-label {
+  .input-label {
         font-size: 18px;
         font-weight: bold;
         color: #ADD8E6;
         margin-bottom: 10px;
     }
-   .footer {
+  .footer {
         text-align: center;
         margin-top: 50px;
         font-size: 16px;
@@ -58,7 +58,7 @@ st.markdown("""
         padding: 20px;
         border-top: 1px solid #6A5ACD;
     }
-   .button {
+  .button {
         background-color: #0056b3;
         border: none;
         color: white;
@@ -73,19 +73,19 @@ st.markdown("""
         box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.5);
         transition: background-color 0.3s, box-shadow 0.3s;
     }
-   .button:hover {
+  .button:hover {
         background-color: #003366;
         box-shadow: 0px 6px 10px rgba(0, 0, 0, 0.7);
     }
-   .stSelectbox,.stNumberInput,.stSlider {
+  .stSelectbox,.stNumberInput,.stSlider {
         margin-bottom: 20px;
     }
-   .stSlider > div {
+  .stSlider > div {
         padding: 10px;
         background: #E6E6FA;
         border-radius: 10px;
     }
-   .prediction-result {
+  .prediction-result {
         font-size: 24px;
         color: #ffffff;
         margin-top: 30px;
@@ -94,7 +94,7 @@ st.markdown("""
         background: #4682B4;
         box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
     }
-   .advice-text {
+  .advice-text {
         font-size: 20px;
         line-height: 1.6;
         color: #ffffff;
@@ -116,8 +116,8 @@ st.markdown('<div class="title">空气质量指数预测</div>', unsafe_allow_ht
 class ResidualBlock(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(ResidualBlock, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, input_size)
+        self.fc1 = nn.Linear(input_size, hidden_size, bias=True)
+        self.fc2 = nn.Linear(hidden_size, input_size, bias=True)
         self.leaky_relu = nn.LeakyReLU(0.01)
         self.dropout = nn.Dropout(0.5)
 
@@ -132,12 +132,12 @@ class ResidualBlock(nn.Module):
 class MultiDimensionalResNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(MultiDimensionalResNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc1 = nn.Linear(input_size, hidden_size, bias=True)
         self.residual_block1 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block2 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block3 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block4 = ResidualBlock(hidden_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, num_classes)  # 输出维度为6，对应分类类别数
+        self.fc2 = nn.Linear(hidden_size, num_classes, bias=True)
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
@@ -228,7 +228,7 @@ def predict():
 
         # 标准化输入并转换为张量（克隆避免视图）
         features_scaled = scaler.transform(features_array)
-        features_tensor = torch.tensor(features_scaled, dtype=torch.float32).clone()  # 关键：克隆张量
+        features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()  # 设置 requires_grad=True
         st.write(f"features_tensor shape: {features_tensor.shape}")
 
         # 模型预测
@@ -256,7 +256,7 @@ def predict():
             if 'X_train_scaled' not in st.session_state:
                 raise ValueError("未找到训练数据 X_train_scaled")
             X_train_scaled = st.session_state['X_train_scaled']
-            background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32).clone()  # 关键：克隆张量
+            background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32, requires_grad=True).clone()  # 设置 requires_grad=True
             st.write(f"background_tensor shape: {background_tensor.shape}")
 
             # SHAP 解释器（模型需保持评估模式）
