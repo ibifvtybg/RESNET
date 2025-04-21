@@ -263,18 +263,17 @@ def predict():
 
         X_train_scaled = st.session_state['X_train_scaled']
         st.write(f"X_train_scaled shape: {X_train_scaled.shape}")
+        # 确保克隆
         background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32, requires_grad=True).clone()
-        st.write(f"background_tensor shape: {background_tensor.shape}")
+        features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
 
-        # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
+        # 在获取shap_values后若有后续操作，再次确认克隆
         shap_values = explainer.shap_values(features_tensor)
-        if isinstance(shap_values, list):
-            st.write(f"shap_values is a list of length {len(shap_values)}")
-            for i, val in enumerate(shap_values):
-                st.write(f"shap_values[{i}] shape: {val.shape}")
-        else:
-            st.write(f"shap_values shape: {shap_values.shape}")
+        if isinstance(shap_values, torch.Tensor):
+            shap_values = shap_values.clone()
+        elif isinstance(shap_values, list):
+            shap_values = [val.clone() for val in shap_values]
 
         # 处理分类模型的 SHAP 值列表
         st.write(f"predicted_class for SHAP selection: {predicted_class}")
