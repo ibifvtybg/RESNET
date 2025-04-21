@@ -232,7 +232,6 @@ def predict():
 
         # 标准化输入
         features_scaled = scaler.transform(features_array)
-        st.write(f"features_scaled shape: {features_scaled.shape}")
         features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
         st.write(f"features_tensor shape: {features_tensor.shape}")
 
@@ -256,24 +255,28 @@ def predict():
         }[predicted_category]
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
-        # 检查训练数据是否加载
+        # 假设 X_train_scaled 是训练集特征（需在全局或 session_state 中定义）
         if 'X_train_scaled' not in st.session_state:
-            st.write(f"<div style='color: red;'>训练数据 X_train_scaled 未加载，请重新启动应用。</div>", unsafe_allow_html=True)
-            return
-
+            raise ValueError("未找到训练数据 X_train_scaled，请先加载数据")
         X_train_scaled = st.session_state['X_train_scaled']
         st.write(f"X_train_scaled shape: {X_train_scaled.shape}")
-        # 确保克隆
         background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32, requires_grad=True).clone()
-        features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
+        st.write(f"background_tensor shape: {background_tensor.shape}")
 
+        # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
-        # 在获取shap_values后若有后续操作，再次确认克隆
         shap_values = explainer.shap_values(features_tensor)
         if isinstance(shap_values, torch.Tensor):
             shap_values = shap_values.clone()
         elif isinstance(shap_values, list):
-            shap_values = [val.clone() for val in shap_values]
+            shap_values = [val.clone() if isinstance(val, torch.Tensor) else val for val in shap_values]
+
+        if isinstance(shap_values, list):
+            st.write(f"shap_values is a list of length {len(shap_values)}")
+            for i, val in enumerate(shap_values):
+                st.write(f"shap_values[{i}] shape: {val.shape}")
+        else:
+            st.write(f"shap_values shape: {shap_values.shape}")
 
         # 处理分类模型的 SHAP 值列表
         st.write(f"predicted_class for SHAP selection: {predicted_class}")
@@ -352,7 +355,7 @@ def predict():
         st.write(f"<div style='color: red;'>预测过程中索引错误：{ie}</div>", unsafe_allow_html=True)
     except Exception as e:
         st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
-
+    
 if st.button("进行预测"):
     predict()
 
