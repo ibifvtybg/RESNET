@@ -15,7 +15,7 @@ font_prop = FontProperties(fname=font_path, size=20)
 plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
 plt.rcParams['axes.unicode_minus'] = False
 
-# 添加蓝色主题的 CSS 样式，修复背景颜色问题
+# 添加蓝色主题的 CSS 样式
 st.markdown("""
     <style>
    .main {
@@ -135,7 +135,7 @@ class MultiDimensionalResNet(nn.Module):
         self.residual_block2 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block3 = ResidualBlock(hidden_size, hidden_size)
         self.residual_block4 = ResidualBlock(hidden_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, num_classes)
+        self.fc2 = nn.Linear(hidden_size, 6)  # 假设是 6 类空气质量分类
         self.dropout = nn.Dropout(0.5)
 
     def forward(self, x):
@@ -153,6 +153,9 @@ def load_artifacts():
     try:
         model = joblib.load('RESNET.pkl')
         scaler = joblib.load('scaler.pkl')
+        # 假设训练数据存储在 'X_train.pkl' 文件中，需根据实际情况修改
+        X_train = joblib.load('X_train.pkl')
+        st.session_state['X_train'] = X_train
         return model, scaler
     except Exception as e:
         st.error(f"加载模型或标准化器失败：{str(e)}")
@@ -162,6 +165,16 @@ model, scaler = load_artifacts()
 
 # 特征顺序需与训练时一致
 FEATURES = ['TEMP', 'DEWP', 'SLP', 'STP', 'VISIB', 'WDSP', 'MXSPD', 'MAX', 'MIN', 'PRCP', 'CO', 'NO2', 'SO2', 'O3', 'PM2.5', 'PM10']
+
+# 定义空气质量类别映射
+category_mapping = {
+    5: '严重污染',
+    4: '重度污染',
+    3: '中度污染',
+    2: '轻度污染',
+    1: '良',
+    0: '优'
+}
 
 st.markdown('<div class="subheader">请填写以下气象和污染物数据：</div>', unsafe_allow_html=True)
 
@@ -220,23 +233,23 @@ def predict():
 
         # 模型预测
         with torch.no_grad():
-            prediction = model(features_tensor).item()
-        st.markdown(f"<div class='prediction-result'>预测空气质量指数：{prediction:.2f}</div>", unsafe_allow_html=True)
+            prediction_logits = model(features_tensor)
+            predicted_proba = torch.softmax(prediction_logits, dim=1).numpy()[0]
+            predicted_class = np.argmax(predicted_proba)
+        predicted_category = category_mapping[predicted_class]
+        st.markdown(f"<div class='prediction-result'>预测类别：{predicted_category}</div>", unsafe_allow_html=True)
 
         # 根据预测结果生成建议
-        if prediction < 50:
-            advice = "建议：空气质量优，可尽情享受户外活动。"
-        elif prediction < 100:
-            advice = "建议：空气质量良，可以正常进行户外活动。"
-        elif prediction < 150:
-            advice = "建议：空气质量轻度污染，敏感人群应减少户外活动。"
-        elif prediction < 200:
-            advice = "建议：空气质量中度污染，建议减少外出，佩戴防护口罩。"
-        elif prediction < 300:
-            advice = "建议：空气质量重度污染，采取防护措施，减少户外活动。"
-        else:
-            advice = "建议：空气质量严重污染，尽量避免外出。"
-
+        probability = predicted_proba[predicted_class] * 100
+        probability_str = " ".join([f"{category_mapping[i]}: {predicted_proba[i]*100:.1f}%" for i in range(len(category_mapping))])
+        advice = {
+            '严重污染': f"建议：根据我们的库，该日空气质量为严重污染。模型预测该日为严重污染的概率为 {probability:.1f}%。建议采取防护措施，减少户外活动。",
+            '重度污染': f"建议：根据我们的库，该日空气质量为重度污染。模型预测该日为重度污染的概率为 {probability:.1f}%。建议减少外出，佩戴防护口罩。",
+            '中度污染': f"建议：根据我们的库，该日空气质量为中度污染。模型预测该日为中度污染的概率为 {probability:.1f}%。敏感人群应减少户外活动。",
+            '轻度污染': f"建议：根据我们的库，该日空气质量为轻度污染。模型预测该日为轻度污染的概率为 {probability:.1f}%。可以适当进行户外活动，但仍需注意防护。",
+            '良': f"建议：根据我们的库，此日空气质量为良。模型预测此日空气质量为良的概率为 {probability:.1f}%。可以正常进行户外活动。",
+            '优': f"建议：根据我们的库，该日空气质量为优。模型预测该日空气质量为优的概率为 {probability:.1f}%。空气质量良好，尽情享受户外时光。",
+        }[predicted_category]
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
         # 假设 X_train 是训练集特征（需在全局或 session_state 中定义）
@@ -254,7 +267,22 @@ def predict():
         # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
         shap_values = explainer.shap_values(features_tensor)
-        st.write(f"shap_values shape: {np.array(shap_values).shape}")
+        if isinstance(shap_values, list):
+            st.write(f"shap_values is a list of length {len(shap_values)}")
+            for i, val in enumerate(shap_values):
+                st.write(f"shap_values[{i}] shape: {val.shape}")
+        else:
+            st.write(f"shap_values shape: {shap_values.shape}")
+
+        # 处理分类模型的 SHAP 值列表
+        st.write(f"predicted_class for SHAP selection: {predicted_class}")
+        if isinstance(shap_values, list):
+            try:
+                shap_values = shap_values[predicted_class]
+                st.write(f"Selected shap_values shape: {shap_values.shape}")
+            except IndexError as e:
+                st.write(f"IndexError occurred while accessing shap_values[{predicted_class}]: {e}")
+                raise
 
         # 转换为 numpy 数组并展平
         shap_values = np.array(shap_values).flatten()
@@ -300,7 +328,7 @@ def predict():
                      ha='center', va='center', fontsize=10, fontproperties=font_prop, color='black')
 
         # 设置图表属性
-        plt.title(f'预测空气质量指数为 {prediction:.2f} 时的特征贡献度瀑布图', size=20, fontproperties=font_prop)
+        plt.title(f'预测类型为{predicted_category}时的特征贡献度瀑布图', size=20, fontproperties=font_prop)
         plt.xlabel('贡献度 (SHAP 值)', fontsize=20, fontproperties=font_prop)
         plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
         plt.yticks(size=20, fontproperties=font_prop)
