@@ -6,6 +6,7 @@ import torch.nn as nn
 import pandas as pd
 import shap
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
 
 # 设置中文字体
@@ -14,6 +15,99 @@ font_prop = FontProperties(fname=font_path, size=20)
 plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
 plt.rcParams['axes.unicode_minus'] = False
 
+# 添加蓝色主题的 CSS 样式，修复背景颜色问题
+st.markdown("""
+    <style>
+   .main {
+        background-color: #007BFF;
+        background-image: url('https://www.transparenttextures.com/patterns/light_blue_fabric.png');
+        color: #ffffff;
+        font-family: 'Arial', sans-serif;
+    }
+   .title {
+        font-size: 48px;
+        color: #808080;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 30px;
+    }
+   .subheader {
+        font-size: 28px;
+        color: #99CCFF;
+        margin-bottom: 25px;
+        text-align: center;
+        border-bottom: 2px solid #80BFFF;
+        padding-bottom: 10px;
+        margin-top: 20px;
+    }
+   .input-label {
+        font-size: 18px;
+        font-weight: bold;
+        color: #ADD8E6;
+        margin-bottom: 10px;
+    }
+   .footer {
+        text-align: center;
+        margin-top: 50px;
+        font-size: 16px;
+        color: #D8BFD8;
+        background-color: #0056b3;
+        padding: 20px;
+        border-top: 1px solid #6A5ACD;
+    }
+   .button {
+        background-color: #0056b3;
+        border: none;
+        color: white;
+        padding: 12px 24px;
+        text-align: center;
+        text-decoration: none;
+        display: inline-block;
+        font-size: 18px;
+        margin: 20px auto;
+        cursor: pointer;
+        border-radius: 10px;
+        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.5);
+        transition: background-color 0.3s, box-shadow 0.3s;
+    }
+   .button:hover {
+        background-color: #003366;
+        box-shadow: 0px 6px 10px rgba(0, 0, 0, 0.7);
+    }
+   .stSelectbox,.stNumberInput,.stSlider {
+        margin-bottom: 20px;
+    }
+   .stSlider > div {
+        padding: 10px;
+        background: #E6E6FA;
+        border-radius: 10px;
+    }
+   .prediction-result {
+        font-size: 24px;
+        color: #ffffff;
+        margin-top: 30px;
+        padding: 20px;
+        border-radius: 10px;
+        background: #4682B4;
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+    }
+   .advice-text {
+        font-size: 20px;
+        line-height: 1.6;
+        color: #ffffff;
+        background: #5DADE2;
+        padding: 20px;
+        border-radius: 10px;
+        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+        margin-top: 15px;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+st.markdown("<div class='main'>", unsafe_allow_html=True)
+
+# 页面标题
+st.markdown('<div class="title">空气质量指数预测</div>', unsafe_allow_html=True)
 
 # 定义 ResidualBlock 类
 class ResidualBlock(nn.Module):
@@ -31,7 +125,6 @@ class ResidualBlock(nn.Module):
         out = self.fc2(out)
         out += residual
         return out
-
 
 # 定义 MultiDimensionalResNet 类
 class MultiDimensionalResNet(nn.Module):
@@ -54,7 +147,6 @@ class MultiDimensionalResNet(nn.Module):
         x = self.fc2(x)
         return x
 
-
 # 加载模型和标准化器
 @st.cache_resource
 def load_artifacts():
@@ -65,7 +157,6 @@ def load_artifacts():
     except Exception as e:
         st.error(f"加载模型或标准化器失败：{str(e)}")
         return None, None
-
 
 model, scaler = load_artifacts()
 
@@ -82,10 +173,9 @@ category_mapping = {
     0: '优'
 }
 
-st.title("空气质量指数预测")
+st.markdown('<div class="subheader">请填写以下气象和污染物数据：</div>', unsafe_allow_html=True)
 
 # 输入组件
-st.header("请填写以下气象和污染物数据：")
 TEMP = st.number_input("温度（℃）", min_value=-30.0, value=15.0)
 DEWP = st.number_input("露点温度（℃）", min_value=-30.0, value=10.0)
 SLP = st.number_input("海平面气压（hPa）", min_value=900.0, value=1013.0)
@@ -103,11 +193,10 @@ O3 = st.number_input("臭氧（O3）浓度", min_value=0.0, value=80.0)
 PM2_5 = st.number_input("PM2.5 浓度", min_value=0.0, value=35.0)
 PM10 = st.number_input("PM10 浓度", min_value=0.0, value=70.0)
 
-
 def predict():
     try:
         if model is None or scaler is None:
-            st.error("模型或标准化器加载失败，请检查文件。")
+            st.write(f"<div style='color: red;'>模型或标准化器加载失败</div>", unsafe_allow_html=True)
             return
 
         # 获取用户输入并构建特征数组
@@ -147,7 +236,7 @@ def predict():
 
         # 根据预测结果生成建议
         probability = predicted_proba[predicted_class] * 100
-        probability_str = " ".join([f"{category_mapping[i]}: {predicted_proba[i] * 100:.1f}%" for i in range(len(category_mapping))])
+        probability_str = " ".join([f"{category_mapping[i]}: {predicted_proba[i]*100:.1f}%" for i in range(len(category_mapping))])
         advice = {
             '严重污染': f"建议：根据我们的库，该日空气质量为严重污染。模型预测该日为严重污染的概率为 {probability:.1f}%。建议采取防护措施，减少户外活动。",
             '重度污染': f"建议：根据我们的库，该日空气质量为重度污染。模型预测该日为重度污染的概率为 {probability:.1f}%。建议减少外出，佩戴防护口罩。",
@@ -158,42 +247,21 @@ def predict():
         }[predicted_category]
 
         # 显示预测结果
-        st.subheader("预测结果")
-        st.markdown(f"预测类别：**{predicted_category}**")
+        st.markdown(f"<div class='prediction-result'>预测类别：{predicted_category}</div>", unsafe_allow_html=True)
         st.write(f"预测概率：{probability_str}")
 
         # 显示建议
-        st.subheader("建议")
-        st.write(advice)
+        st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
         # 计算 SHAP 值
-        if 'X_train' not in st.session_state:
-            st.error("未找到训练数据 X_train，请确保数据已正确加载。")
-            return
-        X_train = st.session_state['X_train']
-        background = torch.tensor(scaler.transform(X_train), dtype=torch.float32)
+        background = torch.tensor(scaler.transform(X_train), dtype=torch.float32)  # 假设 X_train 已定义
         explainer = shap.DeepExplainer(model, background)
         shap_values = explainer.shap_values(features_tensor)
-
-        # 打印 shap_values 的形状和类型
-        st.write("shap_values 的类型:", type(shap_values))
-        if isinstance(shap_values, list):
-            for i, value in enumerate(shap_values):
-                st.write(f"shap_values[{i}] 的形状:", value.shape)
-        else:
-            st.write("shap_values 的形状:", shap_values.shape)
-
-        # 修正代码逻辑
-        if isinstance(shap_values, list):
-            if len(shap_values) == 1:
-                shap_values = shap_values[0]
-            else:
-                shap_values = shap_values[predicted_class]
 
         # 整理特征重要性
         shap_importance = pd.DataFrame({
             'feature': FEATURES,
-            'shap_value': shap_values[0]  # 取第一个样本的 SHAP 值
+           'shap_value': shap_values[0]
         })
         shap_importance['abs_value'] = np.abs(shap_importance['shap_value'])
         shap_importance = shap_importance.sort_values('abs_value', ascending=False)
@@ -203,7 +271,7 @@ def predict():
         contributions_sorted = shap_importance['shap_value'].tolist()
 
         # 初始化绘图
-        fig, ax = plt.subplots(figsize=(12, 8))
+        fig, ax = plt.subplots(figsize=(16, 8))
 
         # 初始化累积值
         start = predicted_proba[predicted_class]
@@ -238,8 +306,10 @@ def predict():
         st.pyplot(fig)
 
     except Exception as e:
-        st.error(f"预测过程中出现错误：{str(e)}")
+        st.write(f"<div style='color: red;'>Error in prediction: {e}</div>", unsafe_allow_html=True)
 
 
-if st.button("预测"):
+if st.button("预测", key="predict_button"):
     predict()
+
+st.markdown('<div class="footer">© 2024 All rights reserved.</div>', unsafe_allow_html=True)
