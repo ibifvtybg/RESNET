@@ -254,7 +254,7 @@ def predict():
         # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
         shap_values = explainer.shap_values(features_tensor)
-        st.write(f"shap_values shape: {shap_values.shape}")
+        st.write(f"shap_values shape: {np.array(shap_values).shape}")
 
         # 转换为 numpy 数组并展平
         shap_values = np.array(shap_values).flatten()
