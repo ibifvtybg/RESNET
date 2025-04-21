@@ -156,7 +156,7 @@ def load_artifacts():
         model = joblib.load('RESNET.pkl')
         scaler = joblib.load('scaler.pkl')
         # 确保加载的是标准化后的 X_train
-        X_train_scaled = joblib.load('X_train_scaled.pkl')
+        X_train_scaled = joblib.load('X_train.pkl')
         st.session_state['X_train_scaled'] = X_train_scaled
         return model, scaler
     except Exception as e:
