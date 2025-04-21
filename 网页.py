@@ -9,51 +9,11 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
 
-# 定义 ResidualBlock 类
-class ResidualBlock(nn.Module):
-    def __init__(self, input_size, hidden_size):
-        super(ResidualBlock, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, input_size)
-        self.leaky_relu = nn.LeakyReLU(0.01)
-        self.dropout = nn.Dropout(0.5)
-
-    def forward(self, x):
-        residual = x
-        out = self.leaky_relu(self.fc1(x))
-        out = self.dropout(out)
-        out = self.fc2(out)
-        out += residual
-        return out
-
-# 定义 MultiDimensionalResNet 类
-class MultiDimensionalResNet(nn.Module):
-    def __init__(self, input_size, hidden_size, num_classes):
-        super(MultiDimensionalResNet, self).__init__()
-        self.fc1 = nn.Linear(input_size, hidden_size)
-        self.residual_block1 = ResidualBlock(hidden_size, hidden_size)
-        self.residual_block2 = ResidualBlock(hidden_size, hidden_size)
-        self.residual_block3 = ResidualBlock(hidden_size, hidden_size)
-        self.residual_block4 = ResidualBlock(hidden_size, hidden_size)
-        self.fc2 = nn.Linear(hidden_size, num_classes)
-        self.dropout = nn.Dropout(0.5)
-
-    def forward(self, x):
-        x = self.dropout(self.fc1(x))
-        x = self.residual_block1(x)
-        x = self.residual_block2(x)
-        x = self.residual_block3(x)
-        x = self.residual_block4(x)
-        x = self.fc2(x)
-        return x
-
 # 设置中文字体
 font_path = "SimHei.ttf"
 font_prop = FontProperties(fname=font_path, size=20)
-
-# 确保 matplotlib 使用指定的字体
 plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
-plt.rcParams['axes.unicode_minus'] = False  # 用来正常显示负号
+plt.rcParams['axes.unicode_minus'] = False
 
 # 添加蓝色主题的 CSS 样式，修复背景颜色问题
 st.markdown("""
@@ -149,19 +109,56 @@ st.markdown("<div class='main'>", unsafe_allow_html=True)
 # 页面标题
 st.markdown('<div class="title">空气质量指数预测</div>', unsafe_allow_html=True)
 
-# 加载 ResNet 模型
-try:
-    model = joblib.load('RESNET.pkl')
-except Exception as e:
-    st.write(f"<div style='color: red;'>Error loading model: {e}</div>", unsafe_allow_html=True)
-    model = None
+# 定义 ResidualBlock 类
+class ResidualBlock(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super(ResidualBlock, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, input_size)
+        self.leaky_relu = nn.LeakyReLU(0.01)
+        self.dropout = nn.Dropout(0.5)
 
-# 加载标准化器
-try:
-    scaler = joblib.load('scaler.pkl')
-except Exception as e:
-    st.write(f"<div style='color: red;'>Error loading scaler: {e}</div>", unsafe_allow_html=True)
-    scaler = None
+    def forward(self, x):
+        residual = x
+        out = self.leaky_relu(self.fc1(x))
+        out = self.dropout(out)
+        out = self.fc2(out)
+        out += residual
+        return out
+
+# 定义 MultiDimensionalResNet 类
+class MultiDimensionalResNet(nn.Module):
+    def __init__(self, input_size, hidden_size, num_classes):
+        super(MultiDimensionalResNet, self).__init__()
+        self.fc1 = nn.Linear(input_size, hidden_size)
+        self.residual_block1 = ResidualBlock(hidden_size, hidden_size)
+        self.residual_block2 = ResidualBlock(hidden_size, hidden_size)
+        self.residual_block3 = ResidualBlock(hidden_size, hidden_size)
+        self.residual_block4 = ResidualBlock(hidden_size, hidden_size)
+        self.fc2 = nn.Linear(hidden_size, num_classes)
+        self.dropout = nn.Dropout(0.5)
+
+    def forward(self, x):
+        x = self.dropout(self.fc1(x))
+        x = self.residual_block1(x)
+        x = self.residual_block2(x)
+        x = self.residual_block3(x)
+        x = self.residual_block4(x)
+        x = self.fc2(x)
+        return x
+
+# 加载模型和标准化器
+@st.cache_resource
+def load_artifacts():
+    try:
+        model = joblib.load('RESNET.pkl')
+        scaler = joblib.load('scaler.pkl')
+        return model, scaler
+    except Exception as e:
+        st.error(f"加载模型或标准化器失败：{str(e)}")
+        return None, None
+
+model, scaler = load_artifacts()
 
 # 特征顺序需与训练时一致
 FEATURES = ['TEMP', 'DEWP', 'SLP', 'STP', 'VISIB', 'WDSP', 'MXSPD', 'MAX', 'MIN', 'PRCP', 'CO', 'NO2', 'SO2', 'O3', 'PM2.5', 'PM10']
@@ -196,11 +193,10 @@ O3 = st.number_input("臭氧（O3）浓度", min_value=0.0, value=80.0)
 PM2_5 = st.number_input("PM2.5 浓度", min_value=0.0, value=35.0)
 PM10 = st.number_input("PM10 浓度", min_value=0.0, value=70.0)
 
-
 def predict():
     try:
         if model is None or scaler is None:
-            st.write("<div style='color: red;'>模型或标准化器加载失败</div>", unsafe_allow_html=True)
+            st.write(f"<div style='color: red;'>模型或标准化器加载失败</div>", unsafe_allow_html=True)
             return
 
         # 获取用户输入并构建特征数组
@@ -258,7 +254,8 @@ def predict():
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
         # 计算 SHAP 值
-        explainer = shap.DeepExplainer(model, torch.tensor(scaler.transform(X_train), dtype=torch.float32))
+        background = torch.tensor(scaler.transform(X_train), dtype=torch.float32)  # 假设 X_train 已定义
+        explainer = shap.DeepExplainer(model, background)
         shap_values = explainer.shap_values(features_tensor)
 
         # 整理特征重要性
@@ -273,11 +270,18 @@ def predict():
         features_sorted = shap_importance['feature'].tolist()
         contributions_sorted = shap_importance['shap_value'].tolist()
 
-        # 绘制瀑布图
+        # 初始化绘图
         fig, ax = plt.subplots(figsize=(12, 8))
+
+        # 初始化累积值
         start = predicted_proba[predicted_class]
         prev_contributions = [start]
 
+        # 计算每一步的累积值
+        for i in range(1, len(contributions_sorted)):
+            prev_contributions.append(prev_contributions[-1] + contributions_sorted[i - 1])
+
+        # 绘制瀑布图
         for i in range(len(contributions_sorted)):
             color = '#66b3ff' if contributions_sorted[i] > 0 else '#ff5050'
             if i == 0:
@@ -286,11 +290,10 @@ def predict():
             else:
                 ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i],
                         color=color, edgecolor='black', height=0.6)
-            prev_contributions.append(prev_contributions[i] - contributions_sorted[i])
             plt.text(prev_contributions[i] + contributions_sorted[i] / 2, i,
                      f"{contributions_sorted[i]:+.2f}", ha='center', va='center', color='black')
 
-        plt.title('预测类型为{}时的特征贡献度瀑布图'.format(predicted_category), fontsize=20, fontproperties=font_prop)
+        plt.title(f'预测类型为{predicted_category}时的特征贡献度瀑布图', fontsize=20, fontproperties=font_prop)
         plt.xlabel('贡献度（SHAP 值）', fontsize=16, fontproperties=font_prop)
         plt.ylabel('特征', fontsize=16, fontproperties=font_prop)
         plt.yticks(fontsize=14, fontproperties=font_prop)
@@ -303,7 +306,7 @@ def predict():
         st.pyplot(fig)
 
     except Exception as e:
-        st.write(f"<div style='color: red;'>Error: {e}</div>", unsafe_allow_html=True)
+        st.write(f"<div style='color: red;'>Error in prediction: {e}</div>", unsafe_allow_html=True)
 
 
 if st.button("预测", key="predict_button"):
