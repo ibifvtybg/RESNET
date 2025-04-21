@@ -2,114 +2,39 @@ import streamlit as st
 import joblib
 import numpy as np
 import torch
-import torch.nn as nn
 import pandas as pd
 import shap
 import matplotlib.pyplot as plt
-import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
 
 # 设置中文字体
 font_path = "SimHei.ttf"
-font_prop = FontProperties(fname=font_path, size=20)
+font_prop = FontProperties(fname=font_path, size=14)
 plt.rcParams['font.sans-serif'] = [font_prop.get_name()]
 plt.rcParams['axes.unicode_minus'] = False
 
-# 添加蓝色主题的 CSS 样式，修复背景颜色问题
+# 全局样式设置
+st.set_page_config(page_title="空气质量预测", layout="wide")
 st.markdown("""
-    <style>
-   .main {
-        background-color: #007BFF;
-        background-image: url('https://www.transparenttextures.com/patterns/light_blue_fabric.png');
-        color: #ffffff;
-        font-family: 'Arial', sans-serif;
-    }
-   .title {
-        font-size: 48px;
-        color: #808080;
-        font-weight: bold;
-        text-align: center;
-        margin-bottom: 30px;
-    }
-   .subheader {
-        font-size: 28px;
-        color: #99CCFF;
-        margin-bottom: 25px;
-        text-align: center;
-        border-bottom: 2px solid #80BFFF;
-        padding-bottom: 10px;
-        margin-top: 20px;
-    }
-   .input-label {
-        font-size: 18px;
-        font-weight: bold;
-        color: #ADD8E6;
-        margin-bottom: 10px;
-    }
-   .footer {
-        text-align: center;
-        margin-top: 50px;
-        font-size: 16px;
-        color: #D8BFD8;
-        background-color: #0056b3;
-        padding: 20px;
-        border-top: 1px solid #6A5ACD;
-    }
-   .button {
-        background-color: #0056b3;
-        border: none;
-        color: white;
-        padding: 12px 24px;
-        text-align: center;
-        text-decoration: none;
-        display: inline-block;
-        font-size: 18px;
-        margin: 20px auto;
-        cursor: pointer;
-        border-radius: 10px;
-        box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.5);
-        transition: background-color 0.3s, box-shadow 0.3s;
-    }
-   .button:hover {
-        background-color: #003366;
-        box-shadow: 0px 6px 10px rgba(0, 0, 0, 0.7);
-    }
-   .stSelectbox,.stNumberInput,.stSlider {
-        margin-bottom: 20px;
-    }
-   .stSlider > div {
-        padding: 10px;
-        background: #E6E6FA;
-        border-radius: 10px;
-    }
-   .prediction-result {
-        font-size: 24px;
-        color: #ffffff;
-        margin-top: 30px;
-        padding: 20px;
-        border-radius: 10px;
-        background: #4682B4;
-        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
-    }
-   .advice-text {
-        font-size: 20px;
-        line-height: 1.6;
-        color: #ffffff;
-        background: #5DADE2;
-        padding: 20px;
-        border-radius: 10px;
-        box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
-        margin-top: 15px;
-    }
-    </style>
+<style>
+.error-box {
+    background-color: #ffe6e6;
+    border-left: 4px solid #ff4d4d;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 5px;
+}
+.info-box {
+    background-color: #e6f7ff;
+    border-left: 4px solid #1890ff;
+    padding: 15px;
+    margin: 15px 0;
+    border-radius: 5px;
+}
+</style>
 """, unsafe_allow_html=True)
 
-st.markdown("<div class='main'>", unsafe_allow_html=True)
-
-# 页面标题
-st.markdown('<div class="title">空气质量指数预测</div>', unsafe_allow_html=True)
-
-# 定义 ResidualBlock 类
+# 定义模型结构
 class ResidualBlock(nn.Module):
     def __init__(self, input_size, hidden_size):
         super(ResidualBlock, self).__init__()
@@ -126,7 +51,6 @@ class ResidualBlock(nn.Module):
         out += residual
         return out
 
-# 定义 MultiDimensionalResNet 类
 class MultiDimensionalResNet(nn.Module):
     def __init__(self, input_size, hidden_size, num_classes):
         super(MultiDimensionalResNet, self).__init__()
@@ -147,196 +71,198 @@ class MultiDimensionalResNet(nn.Module):
         x = self.fc2(x)
         return x
 
-# 加载模型和标准化器
+# 模型加载与错误处理
 @st.cache_resource
-def load_artifacts():
+def load_model_and_scaler():
     try:
         model = joblib.load('RESNET.pkl')
         scaler = joblib.load('scaler.pkl')
+        st.success("模型与标准化器加载成功", icon="✅")
         return model, scaler
+    except FileNotFoundError:
+        st.error("未找到模型或标准化器文件 (RESNET.pkl/scaler.pkl)", icon="🚨")
+        return None, None
     except Exception as e:
-        st.error(f"加载模型或标准化器失败：{str(e)}")
+        st.error(f"模型加载失败: {str(e)}", icon="🚨")
         return None, None
 
-model, scaler = load_artifacts()
+model, scaler = load_model_and_scaler()
 
-# 特征顺序需与训练时一致
-FEATURES = ['TEMP', 'DEWP', 'SLP', 'STP', 'VISIB', 'WDSP', 'MXSPD', 'MAX', 'MIN', 'PRCP', 'CO', 'NO2', 'SO2', 'O3', 'PM2.5', 'PM10']
+# 特征配置
+FEATURES = [
+    'TEMP', 'DEWP', 'SLP', 'STP', 'VISIB', 
+    'WDSP', 'MXSPD', 'MAX', 'MIN', 'PRCP', 
+    'CO', 'NO2', 'SO2', 'O3', 'PM2.5', 'PM10'
+]
+category_mapping = {5: '严重污染', 4: '重度污染', 3: '中度污染',
+                    2: '轻度污染', 1: '良', 0: '优'}
 
-# 定义空气质量类别映射
-category_mapping = {
-    5: '严重污染',
-    4: '重度污染',
-    3: '中度污染',
-    2: '轻度污染',
-    1: '良',
-    0: '优'
-}
+# 输入表单
+st.title("空气质量指数预测系统", anchor=False)
+with st.form("input_form", clear_on_submit=True):
+    st.subheader("气象与污染物数据输入")
+    
+    # 输入验证函数
+    def validate_input(value, min_val, max_val, name):
+        if value < min_val or value > max_val:
+            st.error(f"{name} 输入无效，范围应为 {min_val}~{max_val}", icon="⚠️")
+            return False
+        return True
 
-st.markdown('<div class="subheader">请填写以下气象和污染物数据：</div>', unsafe_allow_html=True)
+    # 分栏布局
+    col1, col2 = st.columns(2)
+    with col1:
+        TEMP = st.number_input("温度（℃）", min_value=-30.0, max_value=50.0, value=15.0)
+        DEWP = st.number_input("露点温度（℃）", min_value=-30.0, max_value=50.0, value=10.0)
+        SLP = st.number_input("海平面气压（hPa）", min_value=900.0, max_value=1100.0, value=1013.0)
+        STP = st.number_input("本站气压（hPa）", min_value=900.0, max_value=1100.0, value=1010.0)
+        VISIB = st.number_input("能见度（km）", min_value=0.0, max_value=50.0, value=10.0)
+        WDSP = st.number_input("风速（m/s）", min_value=0.0, max_value=30.0, value=3.0)
+    
+    with col2:
+        MXSPD = st.number_input("最大风速（m/s）", min_value=0.0, max_value=50.0, value=8.0)
+        MAX = st.number_input("最高温度（℃）", min_value=-30.0, max_value=50.0, value=25.0)
+        MIN = st.number_input("最低温度（℃）", min_value=-30.0, max_value=50.0, value=5.0)
+        PRCP = st.number_input("降水量（mm）", min_value=0.0, max_value=500.0, value=0.0)
+        CO = st.number_input("一氧化碳（CO）浓度", min_value=0.0, max_value=50.0, value=0.5)
+        NO2 = st.number_input("二氧化氮（NO2）浓度", min_value=0.0, max_value=500.0, value=20.0)
+        SO2 = st.number_input("二氧化硫（SO2）浓度", min_value=0.0, max_value=500.0, value=10.0)
+        O3 = st.number_input("臭氧（O3）浓度", min_value=0.0, max_value=500.0, value=80.0)
+        PM2_5 = st.number_input("PM2.5 浓度", min_value=0.0, max_value=1000.0, value=35.0)
+        PM10 = st.number_input("PM10 浓度", min_value=0.0, max_value=1000.0, value=70.0)
+    
+    # 输入数据校验
+    input_valid = all([
+        validate_input(TEMP, -30, 50, "温度"),
+        validate_input(DEWP, -30, 50, "露点温度"),
+        validate_input(SLP, 900, 1100, "海平面气压"),
+        validate_input(STP, 900, 1100, "本站气压"),
+        validate_input(VISIB, 0, 50, "能见度"),
+        validate_input(WDSP, 0, 30, "风速"),
+        validate_input(MXSPD, 0, 50, "最大风速"),
+        validate_input(MAX, -30, 50, "最高温度"),
+        validate_input(MIN, -30, 50, "最低温度"),
+        validate_input(PRCP, 0, 500, "降水量"),
+        validate_input(CO, 0, 50, "一氧化碳浓度"),
+        validate_input(NO2, 0, 500, "二氧化氮浓度"),
+        validate_input(SO2, 0, 500, "二氧化硫浓度"),
+        validate_input(O3, 0, 500, "臭氧浓度"),
+        validate_input(PM2_5, 0, 1000, "PM2.5浓度"),
+        validate_input(PM10, 0, 1000, "PM10浓度"),
+    ])
+    
+    submitted = st.form_submit_button("生成预测", type="primary", use_container_width=True)
 
-# 输入组件
-TEMP = st.number_input("温度（℃）", min_value=-30.0, value=15.0)
-DEWP = st.number_input("露点温度（℃）", min_value=-30.0, value=10.0)
-SLP = st.number_input("海平面气压（hPa）", min_value=900.0, value=1013.0)
-STP = st.number_input("本站气压（hPa）", min_value=900.0, value=1010.0)
-VISIB = st.number_input("能见度（km）", min_value=0.0, value=10.0)
-WDSP = st.number_input("风速（m/s）", min_value=0.0, value=3.0)
-MXSPD = st.number_input("最大风速（m/s）", min_value=0.0, value=8.0)
-MAX = st.number_input("最高温度（℃）", min_value=-20.0, value=25.0)
-MIN = st.number_input("最低温度（℃）", min_value=-30.0, value=5.0)
-PRCP = st.number_input("降水量（mm）", min_value=0.0, value=0.0)
-CO = st.number_input("一氧化碳（CO）浓度", min_value=0.0, value=0.5)
-NO2 = st.number_input("二氧化氮（NO2）浓度", min_value=0.0, value=20.0)
-SO2 = st.number_input("二氧化硫（SO2）浓度", min_value=0.0, value=10.0)
-O3 = st.number_input("臭氧（O3）浓度", min_value=0.0, value=80.0)
-PM2_5 = st.number_input("PM2.5 浓度", min_value=0.0, value=35.0)
-PM10 = st.number_input("PM10 浓度", min_value=0.0, value=70.0)
-
-def predict():
+def main():
+    if not submitted:
+        return
+    
+    if not input_valid:
+        st.stop()
+    
     try:
-        if model is None or scaler is None:
-            st.write(f"<div style='color: red;'>模型或标准化器加载失败</div>", unsafe_allow_html=True)
-            return
-
-        # 获取用户输入并构建特征数组
-        user_inputs = {
-            'TEMP': TEMP,
-            'DEWP': DEWP,
-            'SLP': SLP,
-            'STP': STP,
-            'VISIB': VISIB,
-            'WDSP': WDSP,
-            'MXSPD': MXSPD,
-            'MAX': MAX,
-            'MIN': MIN,
-            'PRCP': PRCP,
-            'CO': CO,
-            'NO2': NO2,
-            'SO2': SO2,
-            'O3': O3,
-            'PM2.5': PM2_5,
-            'PM10': PM10
-        }
-        feature_values = [user_inputs[feat] for feat in FEATURES]
-        features_array = np.array([feature_values])
-
-        # 标准化输入
-        features_scaled = scaler.transform(features_array)
-        features_tensor = torch.tensor(features_scaled, dtype=torch.float32)
-
+        # 数据预处理
+        user_input = np.array([TEMP, DEWP, SLP, STP, VISIB, WDSP, MXSPD, MAX, MIN, PRCP, CO, NO2, SO2, O3, PM2_5, PM10]).reshape(1, -1)
+        user_input_scaled = scaler.transform(user_input)
+        features_tensor = torch.tensor(user_input_scaled, dtype=torch.float32)
+        
         # 模型预测
         with torch.no_grad():
-            prediction_logits = model(features_tensor)
-            predicted_proba = torch.softmax(prediction_logits, dim=1).numpy()[0]
-
-        # 获取预测类别
-        predicted_class = np.argmax(predicted_proba)
-        predicted_category = category_mapping[predicted_class]
-
-        # 根据预测结果生成建议
-        probability = predicted_proba[predicted_class] * 100
-        probability_str = " ".join([f"{category_mapping[i]}: {predicted_proba[i]*100:.1f}%" for i in range(len(category_mapping))])
-        advice = {
-            '严重污染': f"建议：根据我们的库，该日空气质量为严重污染。模型预测该日为严重污染的概率为 {probability:.1f}%。建议采取防护措施，减少户外活动。",
-            '重度污染': f"建议：根据我们的库，该日空气质量为重度污染。模型预测该日为重度污染的概率为 {probability:.1f}%。建议减少外出，佩戴防护口罩。",
-            '中度污染': f"建议：根据我们的库，该日空气质量为中度污染。模型预测该日为中度污染的概率为 {probability:.1f}%。敏感人群应减少户外活动。",
-            '轻度污染': f"建议：根据我们的库，该日空气质量为轻度污染。模型预测该日为轻度污染的概率为 {probability:.1f}%。可以适当进行户外活动，但仍需注意防护。",
-            '良': f"建议：根据我们的库，此日空气质量为良。模型预测此日空气质量为良的概率为 {probability:.1f}%。可以正常进行户外活动。",
-            '优': f"建议：根据我们的库，该日空气质量为优。模型预测该日空气质量为优的概率为 {probability:.1f}%。空气质量良好，尽情享受户外时光。",
-        }[predicted_category]
-
-        # 显示预测结果
-        st.markdown(f"<div class='prediction-result'>预测类别：{predicted_category}</div>", unsafe_allow_html=True)
-        st.write(f"预测概率：{probability_str}")
-
-        # 显示建议
-        st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
-
-        # 假设 X_train 是训练集特征（需在全局或 session_state 中定义）
-        if 'X_train' not in st.session_state:
-            raise ValueError("未找到训练数据 X_train，请先加载数据")
+            logits = model(features_tensor)
+            probs = torch.softmax(logits, dim=1).numpy()[0]
+            pred_class = np.argmax(probs)
+            pred_category = category_mapping[pred_class]
+            
+        # 结果展示
+        st.subheader("预测结果", anchor=False)
+        st.markdown(f"""
+        <div style="font-size: 20px; padding: 15px; background-color: #e6f7ff; border-radius: 5px;">
+            <b>预测类别:</b> {pred_category}<br>
+            <b>预测概率:</b> {probs[pred_class]*100:.1f}%<br>
+            <b>各等级概率:</b> {", ".join([f"{k}: {v*100:.1f}%" for k, v in zip(category_mapping.values(), probs)])}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # 建议生成
+        advice_dict = {
+            '严重污染': "建议避免户外活动，关闭门窗，敏感人群及时就医",
+            '重度污染': "建议减少外出，佩戴防颗粒物口罩，减少户外锻炼",
+            '中度污染': "建议儿童、老年人及敏感人群减少户外活动",
+            '轻度污染': "建议适当减少户外活动，易感人群注意防护",
+            '良': "适宜户外活动，注意适时增减衣物",
+            '优': "非常适宜户外活动，享受清新空气"
+        }
+        st.info(f"⚠️ 空气质量建议: {advice_dict[pred_category]}", icon="💡")
+        
+        # SHAP值分析
+        st.subheader("特征重要性分析 (SHAP值)", anchor=False)
+        if 'X_train' not in st.session_state or st.session_state['X_train'].empty:
+            st.error("训练数据未加载，请先上传训练数据集", icon="🚨")
+            return
+            
         X_train = st.session_state['X_train']
-
-        # 标准化背景数据
+        if X_train.shape[0] < 10:
+            st.warning("训练数据样本量较少，SHAP值计算可能不准确", icon="⚠️")
+            
+        # 背景数据处理
         background_scaled = scaler.transform(X_train)
         background_tensor = torch.tensor(background_scaled, dtype=torch.float32)
-
-        # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
         shap_values = explainer.shap_values(features_tensor)
-        st.write(shap_values.shape)
-
-        # 处理分类模型的 SHAP 值列表
+        
+        # SHAP值维度校验
+        if isinstance(shap_values, list) and len(shap_values) != len(category_mapping):
+            st.error(f"SHAP值维度异常，预期类别数 {len(category_mapping)}，实际 {len(shap_values)}", icon="🚨")
+            return
+            
+        # 提取预测类别SHAP值
         if isinstance(shap_values, list):
-            shap_values = shap_values[predicted_class]
-
-        # 转换为 numpy 数组并展平
+            shap_values = shap_values[pred_class]
         shap_values = np.array(shap_values).flatten()
-
-        # 计算特征重要性
-        shap_importance = pd.DataFrame({
-            'feature': FEATURES,
-            'shap_value': shap_values
-        })
-        shap_importance['abs_value'] = np.abs(shap_importance['shap_value'])
-        shap_importance = shap_importance.sort_values('abs_value', ascending=False)
-
-        # 准备绘制瀑布图的数据
-        features = shap_importance['feature'].tolist()
-        contributions = shap_importance['shap_value'].tolist()
-
-        # 确保瀑布图的数据是按贡献度绝对值降序排列的
-        sorted_indices = np.argsort(np.abs(contributions))[::-1]
-        features_sorted = [features[i] for i in sorted_indices]
-        contributions_sorted = [contributions[i] for i in sorted_indices]
-
-        # 初始化绘图
-        fig, ax = plt.subplots(figsize=(14, 8))
-
-        # 初始化累积值
-        start = 0
-        prev_contributions = [start]
-
-        # 计算每一步的累积值
-        for i in range(1, len(contributions_sorted)):
-            prev_contributions.append(prev_contributions[-1] + contributions_sorted[i - 1])
-
-        # 绘制瀑布图
-        for i in range(len(contributions_sorted)):
-            color = '#ff5050' if contributions_sorted[i] < 0 else '#66b3ff'
-            if i == len(contributions_sorted) - 1:
-                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, hatch='/')
-            else:
-                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5)
-
-            plt.text(prev_contributions[i] + contributions_sorted[i] / 2, i, f"{contributions_sorted[i]:.2f}",
-                     ha='center', va='center', fontsize=10, fontproperties=font_prop, color='black')
-
-        # 设置图表属性
-        plt.title(f'预测类型为{predicted_category}时的特征贡献度瀑布图', size=20, fontproperties=font_prop)
-        plt.xlabel('贡献度 (SHAP 值)', fontsize=20, fontproperties=font_prop)
-        plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
-        plt.yticks(size=20, fontproperties=font_prop)
-        plt.xticks(size=20, fontproperties=font_prop)
+        
+        # 重要性排序
+        importance_df = pd.DataFrame({
+            '特征': FEATURES,
+            'SHAP值': shap_values,
+            '绝对值': np.abs(shap_values)
+        }).sort_values('绝对值', ascending=False)
+        
+        # 数据展示
+        st.dataframe(importance_df.style.format({'SHAP值': '{:.4f}', '绝对值': '{:.4f}'}), use_container_width=True)
+        
+        # 瀑布图绘制
+        st.subheader("特征贡献度瀑布图", anchor=False)
+        features_sorted = importance_df['特征'].tolist()
+        contributions = importance_df['SHAP值'].tolist()
+        
+        fig, ax = plt.subplots(figsize=(12, 6))
+        y_pos = np.arange(len(features_sorted))
+        colors = ['#1890ff' if c > 0 else '#ff4d4d' for c in contributions]
+        
+        ax.barh(y_pos, contributions, color=colors, edgecolor='white')
+        ax.set_xlabel('SHAP值贡献度', fontproperties=font_prop)
+        ax.set_ylabel('特征', fontproperties=font_prop)
+        ax.set_title(f'{pred_category}预测的特征贡献分析', fontproperties=font_prop, fontsize=16)
+        ax.set_yticks(y_pos, features_sorted, fontproperties=font_prop)
+        
+        # 添加数值标签
+        for i, val in enumerate(contributions):
+            ax.text(val + 0.01, i, f'{val:.3f}', va='center', fontsize=10)
+        
         plt.grid(axis='x', linestyle='--', alpha=0.7)
-
-        # 增加边距避免裁剪
-        plt.xlim(left=0, right=max(prev_contributions) + max(contributions_sorted) * 1.0)
-        fig.subplots_adjust(left=0.15, right=0.95, top=0.9, bottom=0.15)
-
         plt.tight_layout()
-
-        # 保存并在 Streamlit 中展示
-        plt.savefig("shap_waterfall_plot.png", bbox_inches='tight', dpi=1200)
-        st.image("shap_waterfall_plot.png")
-
+        st.pyplot(fig)
+        
+    except torch.cuda.OutOfMemoryError:
+        st.error("内存不足，请减少输入数据量或重启应用", icon="🚨")
+    except shap.ExplanationError as e:
+        st.error(f"SHAP值计算失败: {str(e)}", icon="🚨")
     except Exception as e:
-        st.write(f"<div style='color: red;'>Error in prediction: {e}</div>", unsafe_allow_html=True)
+        st.error(f"预测过程中发生错误: {str(e)}", icon="🚨")
+        st.exception(e)  # 开发环境显示详细堆栈
 
-
-if st.button("预测", key="predict_button"):
-    predict()
-
-st.markdown('<div class="footer">© 2024 All rights reserved.</div>', unsafe_allow_html=True)
-    
+if __name__ == "__main__":
+    if model and scaler:
+        main()
+    else:
+        st.stop()
