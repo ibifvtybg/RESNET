@@ -223,10 +223,10 @@ def predict():
         st.write(f"features_array shape: {features_array.shape}")
 
         # 标准化输入
-        features_scaled = scaler.transform(features_array)
+        features_scaled = scaler.transform(features_array)[0]
         st.write(f"features_scaled shape: {features_scaled.shape}")
         features_tensor = torch.tensor(features_scaled, dtype=torch.float32)
-        st.write(f"features_tensor shape: {features_tensor.shape}")
+        st.write(f"features_tensor shape: {features_tensor.shape}")[0]
 
         # 模型预测
         with torch.no_grad():
