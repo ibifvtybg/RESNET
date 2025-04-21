@@ -253,66 +253,49 @@ def predict():
         # 显示建议
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
-        # 计算 SHAP 值
-        explainer = shap.TreeExplainer(model)
-        shap_values = explainer.shap_values(features_array)
+        # 假设 X_train 是训练集特征（需在全局或 session_state 中定义）
+        if 'X_train' not in st.session_state:
+            raise ValueError("未找到训练数据 X_train，请先加载数据")
+        X_train = st.session_state['X_train']
 
-        # 计算每个类别的特征贡献度
-        importance_df = pd.DataFrame()
-        for i in range(shap_values.shape[2]):  # 对每个类别进行计算
-            importance = np.abs(shap_values[:, :, i]).mean(axis=0)
-            importance_df[f'Class_{i}'] = importance
+        # 标准化背景数据
+        background_scaled = scaler.transform(X_train)
+        background_tensor = torch.tensor(background_scaled, dtype=torch.float32)
 
-        importance_df.index = model_input_features
+        # 使用 DeepExplainer 解释深度学习模型
+        explainer = shap.DeepExplainer(model, background_tensor)
+        shap_values = explainer.shap_values(features_tensor)
 
-        # 类别映射
-        type_mapping = {
-             5: '严重污染',
-             4: '重度污染',
-             3: '中度污染',
-             2: '轻度污染',
-             1: '良',
-             0: '优'
-        }
-        importance_df.columns = [type_mapping[i] for i in range(importance_df.shape[1])]
+        # 处理分类模型的 SHAP 值列表
+        if isinstance(shap_values, list):
+            shap_values = shap_values[predicted_class]
 
-        # 获取指定类别的 SHAP 值贡献度
-        predicted_class_name = category_mapping[predicted_class]  # 根据预测类别获取类别名称
-        importances = importance_df[predicted_class_name]  # 提取 importance_df 中对应的类别列
+        # 转换为 numpy 数组并展平
+        shap_values = np.array(shap_values).flatten()
+
+        # 计算特征重要性
+        shap_importance = pd.DataFrame({
+            'feature': FEATURES,
+            'shap_value': shap_values
+        })
+        shap_importance['abs_value'] = np.abs(shap_importance['shap_value'])
+        shap_importance = shap_importance.sort_values('abs_value', ascending=False)
 
         # 准备绘制瀑布图的数据
-        feature_name_mapping = {
-            'TEMP': TEMP,
-            'DEWP': DEWP,
-            'SLP': SLP,
-            'STP': STP,
-            'VISIB': VISIB,
-            'WDSP': WDSP,
-            'MXSPD': MXSPD,
-            'MAX': MAX,
-            'MIN': MIN,
-            'PRCP': PRCP,
-            'CO': CO,
-            'NO2': NO2,
-            'SO2': SO2,
-            'O3': O3,
-            'PM2.5': PM2_5,
-            'PM10': PM10
-        }
-        features = [feature_name_mapping[f] for f in importances.index.tolist()]  # 获取特征名称
-        contributions = importances.values  # 获取特征贡献度
+        features = shap_importance['feature'].tolist()
+        contributions = shap_importance['shap_value'].tolist()
 
         # 确保瀑布图的数据是按贡献度绝对值降序排列的
         sorted_indices = np.argsort(np.abs(contributions))[::-1]
         features_sorted = [features[i] for i in sorted_indices]
-        contributions_sorted = contributions[sorted_indices]
+        contributions_sorted = [contributions[i] for i in sorted_indices]
 
         # 初始化绘图
         fig, ax = plt.subplots(figsize=(14, 8))
 
         # 初始化累积值
         start = 0
-        prev_contributions = [start]  # 起始值为0
+        prev_contributions = [start]
 
         # 计算每一步的累积值
         for i in range(1, len(contributions_sorted)):
@@ -320,23 +303,21 @@ def predict():
 
         # 绘制瀑布图
         for i in range(len(contributions_sorted)):
-            color = '#ff5050' if contributions_sorted[i] < 0 else '#66b3ff'  # 负贡献使用红色，正贡献使用蓝色
+            color = '#ff5050' if contributions_sorted[i] < 0 else '#66b3ff'
             if i == len(contributions_sorted) - 1:
-                # 最后一个条形带箭头效果，表示最终累积值
                 ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, hatch='/')
             else:
                 ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5)
 
-            # 在每个条形上显示数值
-            plt.text(prev_contributions[i] + contributions_sorted[i] / 2, i, f"{contributions_sorted[i]:.2f}", 
-                    ha='center', va='center', fontsize=10, fontproperties=font_prop, color='black')
-            
+            plt.text(prev_contributions[i] + contributions_sorted[i] / 2, i, f"{contributions_sorted[i]:.2f}",
+                     ha='center', va='center', fontsize=10, fontproperties=font_prop, color='black')
+
         # 设置图表属性
-        plt.title(f'预测类型为{predicted_class_name}时的特征贡献度瀑布图', size = 20, fontproperties=font_prop)
+        plt.title(f'预测类型为{predicted_category}时的特征贡献度瀑布图', size=20, fontproperties=font_prop)
         plt.xlabel('贡献度 (SHAP 值)', fontsize=20, fontproperties=font_prop)
         plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
-        plt.yticks(size = 20, fontproperties=font_prop)
-        plt.xticks(size = 20, fontproperties=font_prop)
+        plt.yticks(size=20, fontproperties=font_prop)
+        plt.xticks(size=20, fontproperties=font_prop)
         plt.grid(axis='x', linestyle='--', alpha=0.7)
 
         # 增加边距避免裁剪
@@ -349,7 +330,6 @@ def predict():
         plt.savefig("shap_waterfall_plot.png", bbox_inches='tight', dpi=1200)
         st.image("shap_waterfall_plot.png")
 
-
     except Exception as e:
         st.write(f"<div style='color: red;'>Error in prediction: {e}</div>", unsafe_allow_html=True)
 
@@ -358,3 +338,4 @@ if st.button("预测", key="predict_button"):
     predict()
 
 st.markdown('<div class="footer">© 2024 All rights reserved.</div>', unsafe_allow_html=True)
+    
