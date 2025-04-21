@@ -219,12 +219,14 @@ def predict():
             'NO2': NO2,
             'SO2': SO2,
             'O3': O3,
-            'PM2_5': PM2_5,
+            'PM2.5': PM2_5,
             'PM10': PM10
         }
         feature_values = [user_inputs[feat] for feat in FEATURES]
         features_array = np.array([feature_values])
         st.write(f"features_array shape: {features_array.shape}")
+        # 调试输出特征值，查看 PM2.5 等是否正确获取
+        st.write(f"feature_values: {feature_values}") 
 
         # 标准化输入
         features_scaled = scaler.transform(features_array)
@@ -346,8 +348,10 @@ def predict():
 
     except ValueError as ve:
         st.write(f"<div style='color: red;'>预测错误：{ve}</div>", unsafe_allow_html=True)
+    except IndexError as ie:
+        st.write(f"<div style='color: red;'>预测过程中索引错误：{ie}</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
+        st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}，请检查特征数据与模型设置</div>", unsafe_allow_html=True)
 
 
 if st.button("预测", key="predict_button"):
