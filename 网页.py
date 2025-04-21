@@ -143,14 +143,14 @@ class MultiDimensionalResNet(nn.Module):
 
     def forward(self, x):
         x = self.dropout(self.fc1(x))
-        x = x.clone()  # 检查线性层fc1计算后克隆
+        x = x.clone()
         x = self.residual_block1(x)
         x = self.residual_block2(x)
         x = self.residual_block3(x)
         x = self.residual_block4(x)
         x = self.fc2(x)
         return x
-        
+
 # 加载模型和标准化器
 @st.cache_resource
 def load_artifacts():
@@ -232,8 +232,12 @@ def predict():
 
         # 标准化输入
         features_scaled = scaler.transform(features_array)
+        st.write(f"features_scaled dtype: {features_scaled.dtype}, shape: {features_scaled.shape}")
         features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
-        st.write(f"features_tensor shape: {features_tensor.shape}")
+        st.write(f"features_tensor dtype: {features_tensor.dtype}, shape: {features_tensor.shape}")
+
+        # 备份张量，以防 shap 操作中出现问题
+        backup_features_tensor = features_tensor.clone()
 
         # 模型预测
         with torch.no_grad():
@@ -255,17 +259,24 @@ def predict():
         }[predicted_category]
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
-        # 假设 X_train_scaled 是训练集特征（需在全局或 session_state 中定义）
+        # 检查训练数据是否加载
         if 'X_train_scaled' not in st.session_state:
-            raise ValueError("未找到训练数据 X_train_scaled，请先加载数据")
+            st.write(f"<div style='color: red;'>训练数据 X_train_scaled 未加载，请重新启动应用。</div>", unsafe_allow_html=True)
+            return
+
         X_train_scaled = st.session_state['X_train_scaled']
-        st.write(f"X_train_scaled shape: {X_train_scaled.shape}")
+        st.write(f"X_train_scaled dtype: {X_train_scaled.dtype}, shape: {X_train_scaled.shape}")
         background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32, requires_grad=True).clone()
-        st.write(f"background_tensor shape: {background_tensor.shape}")
+        st.write(f"background_tensor dtype: {background_tensor.dtype}, shape: {background_tensor.shape}")
+
+        # 备份张量，以防 shap 操作中出现问题
+        backup_background_tensor = background_tensor.clone()
 
         # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
         shap_values = explainer.shap_values(features_tensor)
+
+        # 对 shap_values 处理前再次检查和克隆
         if isinstance(shap_values, torch.Tensor):
             shap_values = shap_values.clone()
         elif isinstance(shap_values, list):
@@ -355,8 +366,9 @@ def predict():
         st.write(f"<div style='color: red;'>预测过程中索引错误：{ie}</div>", unsafe_allow_html=True)
     except Exception as e:
         st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
-    
+
 if st.button("进行预测"):
     predict()
+    
 
 st.markdown('<div class="footer">© 2024 All rights reserved.</div>', unsafe_allow_html=True)
