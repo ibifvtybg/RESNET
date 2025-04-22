@@ -240,9 +240,7 @@ def predict():
 
         # 模型预测
         with torch.no_grad():
-            st.write(f"Before model forward, features_tensor id: {id(features_tensor)}")
             prediction_logits = model(features_tensor)
-            st.write(f"After model forward, features_tensor id: {id(features_tensor)}")
             predicted_proba = torch.softmax(prediction_logits, dim=1).numpy()[0]
             predicted_class = np.argmax(predicted_proba)
         predicted_category = category_mapping[predicted_class]
