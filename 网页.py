@@ -159,6 +159,7 @@ def load_artifacts():
         scaler = joblib.load('scaler.pkl')
         X_train_scaled = joblib.load('X_train.pkl')
         st.session_state['X_train_scaled'] = X_train_scaled
+        st.session_state['is_data_loaded'] = True  # 添加标识数据已加载的状态变量
         st.write("训练数据 X_train_scaled 已成功加载。")
         return model, scaler
     except Exception as e:
@@ -262,9 +263,9 @@ def predict():
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
         # 检查训练数据是否加载
-        if 'X_train_scaled' not in st.session_state:
-            st.write(f"<div style='color: red;'>训练数据 X_train_scaled 未加载，请重新启动应用。</div>", unsafe_allow_html=True)
-            return
+        if not st.session_state.get('is_data_loaded', False):
+             st.write(f"<div style='color: red;'>训练数据 X_train_scaled 未加载，请重新启动应用。</div>", unsafe_allow_html=True)
+             return
 
         X_train_scaled = st.session_state['X_train_scaled']
         st.write(f"X_train_scaled dtype: {X_train_scaled.dtype}, shape: {X_train_scaled.shape}")
