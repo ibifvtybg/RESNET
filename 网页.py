@@ -357,12 +357,11 @@ def predict():
         plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
         plt.yticks(size=20, fontproperties=font_prop)
         plt.xticks(size=20, fontproperties=font_prop)
-        plt.xlim(left=0, right=4.0)
         plt.grid(axis='x', linestyle='--', alpha=0.7)
 
         # 增加边距避免裁剪
-        plt.xlim(left=0, right=max(prev_contributions) + max(contributions_sorted) * 1.0)
-        fig.subplots_adjust(left=0.15, right=0.95, top=0.9, bottom=0.15)
+        plt.xlim(left=0, right=max(prev_contributions) + max(contributions_sorted) * 0.8)
+        fig.subplots_adjust(left=0.2, right=0.9, top=0.9, bottom=0.2)
 
         plt.tight_layout()
 
