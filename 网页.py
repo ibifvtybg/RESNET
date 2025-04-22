@@ -356,7 +356,7 @@ def predict():
         plt.xlabel('贡献度 (SHAP 值)', fontsize=20, fontproperties=font_prop)
         plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
         plt.yticks(size=20, fontproperties=font_prop)
-        plt.xticks(np.arange(0, max(contributions_sorted) + 0.5, 0.5)，size=20, fontproperties=font_prop)
+        plt.xticks(size=20, fontproperties=font_prop)
         plt.grid(axis='x', linestyle='--', alpha=0.7)
 
         # 增加边距避免裁剪
