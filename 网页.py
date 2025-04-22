@@ -344,9 +344,9 @@ def predict():
         for i in range(len(contributions_sorted)):
             color = '#ff5050' if contributions_sorted[i] < 0 else '#66b3ff'
             if i == len(contributions_sorted) - 1:
-                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, hatch='/')
+                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, zorder=2, hatch='/')
             else:
-                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5)
+                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, zorder=2)
 
             plt.text(prev_contributions[i] + contributions_sorted[i] / 2, i, f"{contributions_sorted[i]:.2f}",
                      ha='center', va='center', fontsize=10, fontproperties=font_prop, color='black')
