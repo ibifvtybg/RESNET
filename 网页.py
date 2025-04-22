@@ -323,6 +323,8 @@ def predict():
         features_sorted = [features[i] for i in sorted_indices]
         contributions_sorted = [contributions[i] for i in sorted_indices]
 
+        min_contribution = min(contributions_sorted)
+
         # 初始化绘图
         fig, ax = plt.subplots(figsize=(14, 8))
 
