@@ -241,7 +241,9 @@ def predict():
 
         # 模型预测
         with torch.no_grad():
+            st.write(f"Before model forward, features_tensor id: {id(features_tensor)}")
             prediction_logits = model(features_tensor)
+            st.write(f"After model forward, features_tensor id: {id(features_tensor)}")
             predicted_proba = torch.softmax(prediction_logits, dim=1).numpy()[0]
             predicted_class = np.argmax(predicted_proba)
         predicted_category = category_mapping[predicted_class]
@@ -274,7 +276,9 @@ def predict():
 
         # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
+        st.write(f"Before shap_values calculation, background_tensor id: {id(background_tensor)}")
         shap_values = explainer.shap_values(features_tensor)
+        st.write(f"After shap_values calculation, background_tensor id: {id(background_tensor)}")
 
         # 对 shap_values 处理前再次检查和克隆
         if isinstance(shap_values, torch.Tensor):
@@ -366,8 +370,8 @@ def predict():
         st.write(f"<div style='color: red;'>预测过程中索引错误：{ie}</div>", unsafe_allow_html=True)
     except Exception as e:
         st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
-
-if st.button("进行预测"):
+    
+if st.button("预测"):
     predict()
     
 
