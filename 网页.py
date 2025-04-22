@@ -269,40 +269,34 @@ def predict():
 
         X_train_scaled = st.session_state['X_train_scaled']
         st.write(f"X_train_scaled dtype: {X_train_scaled.dtype}, shape: {X_train_scaled.shape}")
-        background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32, requires_grad=True).clone()
+        
+        # 修改1: 确保 background_tensor 不需要梯度
+        background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32).clone()
         st.write(f"background_tensor dtype: {background_tensor.dtype}, shape: {background_tensor.shape}")
 
-        # 备份张量，以防 shap 操作中出现问题
-        backup_background_tensor = background_tensor.clone()
-
-        # 使用 DeepExplainer 解释深度学习模型
-        explainer = shap.DeepExplainer(model, background_tensor)
-        # 手动检查模型梯度状态
-        for param in model.parameters():
-            param.grad = None  # 清空梯度
-        st.write(f"Before shap_values calculation, background_tensor id: {id(background_tensor)}")
-        shap_values = explainer.shap_values(features_tensor)
-        st.write(f"After shap_values calculation, background_tensor id: {id(background_tensor)}")
-        # 再次手动检查模型梯度状态
-        for param in model.parameters():
-            if param.grad is not None:
-                st.write(f"Gradient exists in parameter {param} after shap calculation")
-        shap_values = explainer.shap_values(features_tensor)
-        st.write(f"After shap_values calculation, background_tensor id: {id(background_tensor)}")
-
-        # 对 shap_values 处理前再次检查和克隆
-        if isinstance(shap_values, torch.Tensor):
-            shap_values = shap_values.clone()
-        elif isinstance(shap_values, list):
-            shap_values = [val.clone() if isinstance(val, torch.Tensor) else val for val in shap_values]
-
-        if isinstance(shap_values, list):
-            st.write(f"shap_values is a list of length {len(shap_values)}")
-            for i, val in enumerate(shap_values):
-                st.write(f"shap_values[{i}] shape: {val.shape}")
-        else:
-            st.write(f"shap_values shape: {shap_values.shape}")
-
+        # 修改2: 确保 features_tensor 不需要梯度
+        features_tensor = torch.tensor(features_scaled, dtype=torch.float32).clone()
+        
+        # 修改3: 使用更小的背景数据集样本
+        background_sample = background_tensor[:100]  # 使用前100个样本作为背景
+        
+        # 修改4: 创建解释器前确保模型在eval模式
+        model.eval()
+        
+        # 修改5: 使用 KernelExplainer 替代 DeepExplainer
+        # 首先定义一个包装函数
+        def model_predict(x):
+            if isinstance(x, np.ndarray):
+                x = torch.tensor(x, dtype=torch.float32)
+            with torch.no_grad():
+                return model(x).detach().numpy()
+        
+        # 使用 KernelExplainer
+        explainer = shap.KernelExplainer(model_predict, background_sample.numpy())
+        
+        # 计算 SHAP 值
+        shap_values = explainer.shap_values(features_tensor.numpy())
+        
         # 处理分类模型的 SHAP 值列表
         st.write(f"predicted_class for SHAP selection: {predicted_class}")
         if isinstance(shap_values, list):
