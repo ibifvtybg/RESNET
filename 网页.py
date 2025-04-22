@@ -111,7 +111,7 @@ st.markdown("""
 st.markdown("<div class='main'>", unsafe_allow_html=True)
 
 # 页面标题
-st.markdown('<div class="title">上海市空气质量指数预测</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">基于 ResNet 的空气质量指数预测</div>', unsafe_allow_html=True)
 
 # 定义 ResidualBlock 类
 class ResidualBlock(nn.Module):
