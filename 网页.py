@@ -155,17 +155,23 @@ class MultiDimensionalResNet(nn.Module):
 @st.cache_resource
 def load_artifacts():
     try:
-        model = joblib.load('RESNET.pkl')
-        scaler = joblib.load('scaler.pkl')
-        X_train_scaled = joblib.load('X_train.pkl')
+        model_path = 'RESNET.pkl'
+        scaler_path = 'scaler.pkl'
+        X_train_scaled_path = 'X_train.pkl'
+        print(f"尝试加载模型文件: {model_path}")
+        print(f"尝试加载标准化器文件: {scaler_path}")
+        print(f"尝试加载训练数据文件: {X_train_scaled_path}")
+        model = joblib.load(model_path)
+        scaler = joblib.load(scaler_path)
+        X_train_scaled = joblib.load(X_train_scaled_path)
         st.session_state['X_train_scaled'] = X_train_scaled
-        st.session_state['is_data_loaded'] = True  # 添加标识数据已加载的状态变量
+        st.session_state['is_data_loaded'] = True
         st.write("训练数据 X_train_scaled 已成功加载。")
         return model, scaler
     except Exception as e:
         st.error(f"加载模型或标准化器失败：{str(e)}")
+        print(f"加载失败的详细信息: {e}")
         return None, None
-
 model, scaler = load_artifacts()
 
 # 特征顺序需与训练时一致
