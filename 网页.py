@@ -187,7 +187,7 @@ st.markdown('<div class="subheader">请填写以下气象和污染物数据：</
 TEMP = st.number_input("温度（℃）", min_value=-30.0, value=15.0)
 DEWP = st.number_input("露点温度（℃）", min_value=-30.0, value=10.0)
 SLP = st.number_input("海平面气压（hPa）", min_value=900.0, value=1013.0)
-STP = st.number_input("本站气压（hPa）", min_value=0, value=1010.0)
+STP = st.number_input("本站气压（hPa）", min_value=0.0, value=1010.0)
 VISIB = st.number_input("能见度（km）", min_value=0.0, value=10.0)
 WDSP = st.number_input("风速（m/s）", min_value=0.0, value=3.0)
 MXSPD = st.number_input("最大风速（m/s）", min_value=0.0, value=8.0)
