@@ -354,7 +354,7 @@ def predict():
         plt.grid(axis='x', linestyle='--', alpha=0.7)
 
         # 增加边距避免裁剪
-        plt.xlim(left=0, right=max(prev_contributions) + max(contributions_sorted) * 0.8)
+        plt.xlim(left=xlim_left, right=max(prev_contributions) + max(contributions_sorted) * 0.8)
         fig.subplots_adjust(left=0.2, right=0.9, top=0.9, bottom=0.2)
 
         plt.tight_layout()
