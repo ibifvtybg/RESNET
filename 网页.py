@@ -357,6 +357,7 @@ def predict():
         plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
         plt.yticks(size=20, fontproperties=font_prop)
         plt.xticks(size=20, fontproperties=font_prop)
+        plt.xlim(left=0, right=4.0)
         plt.grid(axis='x', linestyle='--', alpha=0.7)
 
         # 增加边距避免裁剪
