@@ -8,6 +8,7 @@ import shap
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
+from retry import retry
 
 # 检查字体文件路径是否存在
 font_path = "SimHei.ttf"
@@ -151,73 +152,57 @@ class MultiDimensionalResNet(nn.Module):
         x = self.fc2(x)
         return x
 
-# 加载模型和标准化器（优化加载逻辑，明确路径）
+# 加载模型和标准化器
 @st.cache_resource
 def load_artifacts():
-    model_path = "RESNET.pkl"
-    scaler_path = "scaler.pkl"
-    X_train_path = "X_train.pkl"
-    
     try:
+        model_path = 'RESNET.pkl'
+        scaler_path = 'scaler.pkl'
+        X_train_scaled_path = 'X_train.pkl'
         model = joblib.load(model_path)
         scaler = joblib.load(scaler_path)
-        X_train_scaled = joblib.load(X_train_path)
-        
-        # 检查数据有效性
-        if not isinstance(model, nn.Module):
-            raise ValueError("模型文件损坏或类型错误")
-        if X_train_scaled.shape[1] != len(FEATURES):
-            raise ValueError("训练数据特征维度与模型不匹配")
-        
-        st.session_state["X_train_scaled"] = X_train_scaled
-        st.session_state["is_data_loaded"] = True
+        X_train_scaled = joblib.load(X_train_scaled_path)
+        st.session_state['X_train_scaled'] = X_train_scaled
+        st.session_state['is_data_loaded'] = True
         return model, scaler
-    
-    except FileNotFoundError:
-        st.error("模型/标准化器/训练数据文件未找到，请检查文件路径")
-        return None, None
     except Exception as e:
-        st.error(f"加载失败：{str(e)}")
+        st.error(f"加载模型或标准化器失败：{str(e)}")
+        print(f"加载失败的详细信息: {e}")
         return None, None
-
 model, scaler = load_artifacts()
 
 # 特征顺序需与训练时一致
-FEATURES = [
-    "TEMP", "DEWP", "SLP", "STP", "VISIB", 
-    "WDSP", "MXSPD", "MAX", "MIN", "PRCP", 
-    "CO", "NO2", "SO2", "O3", "PM2.5", "PM10"
-]
+FEATURES = ['TEMP', 'DEWP', 'SLP', 'STP', 'VISIB', 'WDSP', 'MXSPD', 'MAX', 'MIN', 'PRCP', 'CO', 'NO2', 'SO2', 'O3', 'PM2.5', 'PM10']
 
 # 定义空气质量类别映射
 category_mapping = {
-    5: "严重污染",
-    4: "重度污染",
-    3: "中度污染",
-    2: "轻度污染",
-    1: "良",
-    0: "优"
+    5: '严重污染',
+    4: '重度污染',
+    3: '中度污染',
+    2: '轻度污染',
+    1: '良',
+    0: '优'
 }
 
 st.markdown('<div class="subheader">请填写以下气象和污染物数据以进行交通污染预测：</div>', unsafe_allow_html=True)
 
-# 输入组件（统一浮点数类型，避免类型错误）
-TEMP = st.number_input("温度（℃）", min_value=-30.0, value=15.0, format="%.1f")
-DEWP = st.number_input("露点温度（℃）", min_value=-30.0, value=10.0, format="%.1f")
-SLP = st.number_input("海平面气压（hPa）", min_value=900.0, value=1013.0, format="%.1f")
-STP = st.number_input("本站气压（hPa）", min_value=0.0, value=1010.0, format="%.1f")
-VISIB = st.number_input("能见度（km）", min_value=0.0, value=10.0, format="%.1f")
-WDSP = st.number_input("风速（m/s）", min_value=0.0, value=3.0, format="%.1f")
-MXSPD = st.number_input("最大风速（m/s）", min_value=0.0, value=8.0, format="%.1f")
-MAX = st.number_input("最高温度（℃）", min_value=-20.0, value=25.0, format="%.1f")
-MIN = st.number_input("最低温度（℃）", min_value=-30.0, value=5.0, format="%.1f")
-PRCP = st.number_input("降水量（mm）", min_value=0.0, value=0.0, format="%.1f")
-CO = st.number_input("一氧化碳（CO）浓度", min_value=0.0, value=0.5, format="%.2f")
-NO2 = st.number_input("二氧化氮（NO2）浓度", min_value=0.0, value=20.0, format="%.2f")
-SO2 = st.number_input("二氧化硫（SO2）浓度", min_value=0.0, value=10.0, format="%.2f")
-O3 = st.number_input("臭氧（O3）浓度", min_value=0.0, value=80.0, format="%.2f")
-PM2_5 = st.number_input("PM2.5 浓度", min_value=0.0, value=35.0, format="%.2f")
-PM10 = st.number_input("PM10 浓度", min_value=0.0, value=70.0, format="%.2f")
+# 输入组件
+TEMP = st.number_input("温度（℃）", min_value=-30.0, value=15.0)
+DEWP = st.number_input("露点温度（℃）", min_value=-30.0, value=10.0)
+SLP = st.number_input("海平面气压（hPa）", min_value=900.0, value=1013.0)
+STP = st.number_input("本站气压（hPa）", min_value=0.0, value=1010.0)
+VISIB = st.number_input("能见度（km）", min_value=0.0, value=10.0)
+WDSP = st.number_input("风速（m/s）", min_value=0.0, value=3.0)
+MXSPD = st.number_input("最大风速（m/s）", min_value=0.0, value=8.0)
+MAX = st.number_input("最高温度（℃）", min_value=-20.0, value=25.0)
+MIN = st.number_input("最低温度（℃）", min_value=-30.0, value=5.0)
+PRCP = st.number_input("降水量（mm）", min_value=0.0, value=0.0)
+CO = st.number_input("一氧化碳（CO）浓度", min_value=0.0, value=0.5)
+NO2 = st.number_input("二氧化氮（NO2）浓度", min_value=0.0, value=20.0)
+SO2 = st.number_input("二氧化硫（SO2）浓度", min_value=0.0, value=10.0)
+O3 = st.number_input("臭氧（O3）浓度", min_value=0.0, value=80.0)
+PM2_5 = st.number_input("PM2.5 浓度", min_value=0.0, value=35.0)
+PM10 = st.number_input("PM10 浓度", min_value=0.0, value=70.0)
 
 def predict():
     try:
