@@ -294,23 +294,40 @@ def predict():
         # 使用 KernelExplainer
         explainer = shap.KernelExplainer(model_predict, background_sample.numpy())
         
-        # 计算 SHAP 值
-        shap_values = explainer.shap_values(features_tensor.numpy())
+        # 计算 SHAP 值 - 添加 nsamples 参数限制计算量
+        shap_values = explainer.shap_values(features_tensor.numpy(), nsamples=100)
         
-        # 处理分类模型的 SHAP 值列表
-        st.write(f"predicted_class for SHAP selection: {predicted_class}")
+        # 处理 SHAP 值
+        st.write(f"Raw shap_values type: {type(shap_values)}")
+        
+        # 修改1: 正确处理多分类输出的 SHAP 值
         if isinstance(shap_values, list):
+            st.write(f"shap_values is a list of length {len(shap_values)}")
+            for i, val in enumerate(shap_values):
+                st.write(f"shap_values[{i}] shape: {val.shape}")
+            
+            # 选择当前预测类别的 SHAP 值
             try:
                 shap_values = shap_values[predicted_class]
                 st.write(f"Selected shap_values shape: {shap_values.shape}")
             except IndexError as e:
                 st.write(f"IndexError occurred while accessing shap_values[{predicted_class}]: {e}")
                 raise
-
-        # 转换为 numpy 数组并展平
-        shap_values = np.array(shap_values).flatten()
-        st.write(f"Flattened shap_values shape: {shap_values.shape}")
-
+        else:
+            st.write(f"shap_values shape: {shap_values.shape}")
+        
+        # 修改2: 确保 SHAP 值形状正确 (1, 16) -> (16,)
+        if len(shap_values.shape) == 2:
+            shap_values = shap_values[0]  # 取第一个样本的解释结果
+            st.write(f"After selecting first sample, shap_values shape: {shap_values.shape}")
+        
+        # 修改3: 检查最终形状
+        if shap_values.shape != (16,):
+            st.write(f"<div style='color: red;'>警告: SHAP 值形状异常 ({shap_values.shape})，尝试自动修正...</div>", unsafe_allow_html=True)
+            # 尝试取前16个值作为应急处理
+            shap_values = shap_values[:16]
+            st.write(f"After truncation, shap_values shape: {shap_values.shape}")
+        
         # 计算特征重要性
         shap_importance = pd.DataFrame({
             'feature': FEATURES,
