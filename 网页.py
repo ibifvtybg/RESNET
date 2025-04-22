@@ -277,7 +277,16 @@ def predict():
 
         # 使用 DeepExplainer 解释深度学习模型
         explainer = shap.DeepExplainer(model, background_tensor)
+        # 手动检查模型梯度状态
+        for param in model.parameters():
+            param.grad = None  # 清空梯度
         st.write(f"Before shap_values calculation, background_tensor id: {id(background_tensor)}")
+        shap_values = explainer.shap_values(features_tensor)
+        st.write(f"After shap_values calculation, background_tensor id: {id(background_tensor)}")
+        # 再次手动检查模型梯度状态
+        for param in model.parameters():
+            if param.grad is not None:
+                st.write(f"Gradient exists in parameter {param} after shap calculation")
         shap_values = explainer.shap_values(features_tensor)
         st.write(f"After shap_values calculation, background_tensor id: {id(background_tensor)}")
 
