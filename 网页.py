@@ -169,10 +169,12 @@ def load_artifacts():
         st.error(f"加载模型或标准化器失败：{str(e)}")
         print(f"加载失败的详细信息: {e}")
         return None, None
+
+
 model, scaler = load_artifacts()
 
 # 特征顺序需与训练时一致
-FEATURES = ['TEMP', 'DEWP', 'SLP', 'STP', 'VISIB', 'WDSP', 'MXSPD', 'MAX', 'MIN', 'PRCP', 'CO', 'NO2', 'SO2', 'O3', 'PM2.5', 'PM10']
+FEATURES = ['TEMP', 'SLP', 'STP', 'VISIB', 'WDSP', 'CO', 'NO2', 'SO2', 'O3', 'PM2.5', 'PM10']
 
 # 定义空气质量类别映射
 category_mapping = {
@@ -188,21 +190,17 @@ st.markdown('<div class="subheader">请填写以下气象和污染物数据以�
 
 # 输入组件
 TEMP = st.number_input("温度（℃）", min_value=-30.0, value=15.0)
-DEWP = st.number_input("露点温度（℃）", min_value=-30.0, value=10.0)
 SLP = st.number_input("海平面气压（hPa）", min_value=900.0, value=1013.0)
 STP = st.number_input("本站气压（hPa）", min_value=0.0, value=1010.0)
 VISIB = st.number_input("能见度（km）", min_value=0.0, value=10.0)
 WDSP = st.number_input("风速（m/s）", min_value=0.0, value=3.0)
-MXSPD = st.number_input("最大风速（m/s）", min_value=0.0, value=8.0)
-MAX = st.number_input("最高温度（℃）", min_value=-20.0, value=25.0)
-MIN = st.number_input("最低温度（℃）", min_value=-30.0, value=5.0)
-PRCP = st.number_input("降水量（mm）", min_value=0.0, value=0.0)
 CO = st.number_input("一氧化碳（CO）浓度", min_value=0.0, value=0.5)
 NO2 = st.number_input("二氧化氮（NO2）浓度", min_value=0.0, value=20.0)
 SO2 = st.number_input("二氧化硫（SO2）浓度", min_value=0.0, value=10.0)
 O3 = st.number_input("臭氧（O3）浓度", min_value=0.0, value=80.0)
 PM2_5 = st.number_input("PM2.5 浓度", min_value=0.0, value=35.0)
 PM10 = st.number_input("PM10 浓度", min_value=0.0, value=70.0)
+
 
 def predict():
     try:
@@ -213,15 +211,10 @@ def predict():
         # 获取用户输入并构建特征数组
         user_inputs = {
             'TEMP': TEMP,
-            'DEWP': DEWP,
             'SLP': SLP,
             'STP': STP,
             'VISIB': VISIB,
             'WDSP': WDSP,
-            'MXSPD': MXSPD,
-            'MAX': MAX,
-            'MIN': MIN,
-            'PRCP': PRCP,
             'CO': CO,
             'NO2': NO2,
             'SO2': SO2,
@@ -261,23 +254,23 @@ def predict():
 
         # 检查训练数据是否加载
         if not st.session_state.get('is_data_loaded', False):
-             st.write(f"<div style='color: red;'>训练数据 X_train_scaled 未加载，请重新启动应用。</div>", unsafe_allow_html=True)
-             return
+            st.write(f"<div style='color: red;'>训练数据 X_train_scaled 未加载，请重新启动应用。</div>", unsafe_allow_html=True)
+            return
 
         X_train_scaled = st.session_state['X_train_scaled']
-        
+
         # 确保 background_tensor 不需要梯度
         background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32).clone()
 
         # 确保 features_tensor 不需要梯度
         features_tensor = torch.tensor(features_scaled, dtype=torch.float32).clone()
-        
+
         # 使用更小的背景数据集样本
         background_sample = background_tensor[:100]  # 使用前100个样本作为背景
-        
+
         # 创建解释器前确保模型在eval模式
         model.eval()
-        
+
         # 使用 KernelExplainer 替代 DeepExplainer
         # 首先定义一个包装函数
         def model_predict(x):
@@ -285,13 +278,13 @@ def predict():
                 x = torch.tensor(x, dtype=torch.float32)
             with torch.no_grad():
                 return model(x).detach().numpy()
-        
+
         # 使用 KernelExplainer
         explainer = shap.KernelExplainer(model_predict, background_sample.numpy())
-        
+
         # 计算 SHAP 值
         shap_values = explainer.shap_values(features_tensor.numpy(), nsamples=100)
-        
+
         # 处理多分类SHAP值
         if isinstance(shap_values, list):
             # 选择当前预测类别的SHAP值
@@ -303,16 +296,16 @@ def predict():
         elif len(shap_values.shape) == 3:  # 处理(1,16,6)形状
             # 选择当前预测类别的解释
             shap_values = shap_values[0, :, predicted_class]  # 取第一个样本，所有特征，当前类别的SHAP值
-        
-        # 确保最终是一维数组(16,)
+
+        # 确保最终是一维数组(11,)
         if len(shap_values.shape) > 1:
             shap_values = shap_values.flatten()
-        
+
         # 验证形状是否正确
-        if shap_values.shape != (16,):
+        if shap_values.shape != (11,):
             st.error(f"SHAP值形状异常 ({shap_values.shape})，无法继续")
             return
-        
+
         # 创建DataFrame
         shap_importance = pd.DataFrame({
             'feature': FEATURES,
@@ -376,9 +369,9 @@ def predict():
         st.write(f"<div style='color: red;'>预测过程中索引错误：{ie}</div>", unsafe_allow_html=True)
     except Exception as e:
         st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
-    
+
+
 if st.button("预测"):
     predict()
-    
 
 st.markdown('<div class="footer">© 2025 All rights reserved.</div>', unsafe_allow_html=True)
