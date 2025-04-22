@@ -110,7 +110,7 @@ st.markdown("""
 st.markdown("<div class='main'>", unsafe_allow_html=True)
 
 # 页面标题
-st.markdown('<div class="title">空气质量指数预测</div>', unsafe_allow_html=True)
+st.markdown('<div class="title">上海市空气质量指数预测</div>', unsafe_allow_html=True)
 
 # 定义 ResidualBlock 类
 class ResidualBlock(nn.Module):
@@ -356,7 +356,7 @@ def predict():
         plt.xlabel('贡献度 (SHAP 值)', fontsize=20, fontproperties=font_prop)
         plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
         plt.yticks(size=20, fontproperties=font_prop)
-        plt.xticks(size=20, fontproperties=font_prop)
+        plt.xticks(np.arange(0, max(contributions_sorted) + 0.5, 0.5)，size=20, fontproperties=font_prop)
         plt.grid(axis='x', linestyle='--', alpha=0.7)
 
         # 增加边距避免裁剪
@@ -380,4 +380,4 @@ if st.button("预测"):
     predict()
     
 
-st.markdown('<div class="footer">© 2024 All rights reserved.</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">© 2025 All rights reserved.</div>', unsafe_allow_html=True)
