@@ -294,47 +294,50 @@ def predict():
         # 使用 KernelExplainer
         explainer = shap.KernelExplainer(model_predict, background_sample.numpy())
         
-        # 计算 SHAP 值 - 添加 nsamples 参数限制计算量
+        # 计算 SHAP 值
         shap_values = explainer.shap_values(features_tensor.numpy(), nsamples=100)
         
-        # 处理 SHAP 值
+        # 调试信息
         st.write(f"Raw shap_values type: {type(shap_values)}")
+        st.write(f"shap_values shape: {np.array(shap_values).shape}")
         
-        # 修改1: 正确处理多分类输出的 SHAP 值
+        # 处理多分类SHAP值
         if isinstance(shap_values, list):
             st.write(f"shap_values is a list of length {len(shap_values)}")
-            for i, val in enumerate(shap_values):
-                st.write(f"shap_values[{i}] shape: {val.shape}")
-            
-            # 选择当前预测类别的 SHAP 值
+            # 选择当前预测类别的SHAP值
             try:
                 shap_values = shap_values[predicted_class]
                 st.write(f"Selected shap_values shape: {shap_values.shape}")
             except IndexError as e:
                 st.write(f"IndexError occurred while accessing shap_values[{predicted_class}]: {e}")
                 raise
-        else:
-            st.write(f"shap_values shape: {shap_values.shape}")
+        elif len(shap_values.shape) == 3:  # 处理(1,16,6)形状
+            st.write("Processing 3D SHAP values array")
+            # 选择当前预测类别的解释
+            shap_values = shap_values[0, :, predicted_class]  # 取第一个样本，所有特征，当前类别的SHAP值
+            st.write(f"After selection, shap_values shape: {shap_values.shape}")
         
-        # 修改2: 确保 SHAP 值形状正确 (1, 16) -> (16,)
-        if len(shap_values.shape) == 2:
-            shap_values = shap_values[0]  # 取第一个样本的解释结果
-            st.write(f"After selecting first sample, shap_values shape: {shap_values.shape}")
+        # 确保最终是一维数组(16,)
+        if len(shap_values.shape) > 1:
+            shap_values = shap_values.flatten()
+            st.write(f"After flattening, shap_values shape: {shap_values.shape}")
         
-        # 修改3: 检查最终形状
+        # 验证形状是否正确
         if shap_values.shape != (16,):
-            st.write(f"<div style='color: red;'>警告: SHAP 值形状异常 ({shap_values.shape})，尝试自动修正...</div>", unsafe_allow_html=True)
-            # 尝试取前16个值作为应急处理
-            shap_values = shap_values[:16]
-            st.write(f"After truncation, shap_values shape: {shap_values.shape}")
+            st.error(f"SHAP值形状异常 ({shap_values.shape})，无法继续")
+            return
         
-        # 计算特征重要性
+        # 创建DataFrame
         shap_importance = pd.DataFrame({
             'feature': FEATURES,
             'shap_value': shap_values
         })
         shap_importance['abs_value'] = np.abs(shap_importance['shap_value'])
         shap_importance = shap_importance.sort_values('abs_value', ascending=False)
+        
+        # 调试输出
+        st.write("SHAP重要性排序:")
+        st.write(shap_importance)
 
         # 准备绘制瀑布图的数据
         features = shap_importance['feature'].tolist()
