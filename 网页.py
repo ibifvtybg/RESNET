@@ -252,11 +252,6 @@ def predict():
         }[predicted_category]
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
-        # 检查训练数据是否加载
-        if not st.session_state.get('is_data_loaded', False):
-            st.write(f"<div style='color: red;'>训练数据 X_train_scaled 未加载，请重新启动应用。</div>", unsafe_allow_html=True)
-            return
-
         X_train_scaled = st.session_state['X_train_scaled']
 
         # 确保 background_tensor 不需要梯度
