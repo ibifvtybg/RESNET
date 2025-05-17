@@ -125,7 +125,6 @@ class ResidualBlock(nn.Module):
     def forward(self, x):
         residual = x.clone()
         out = self.leaky_relu(self.fc1(x))
-        out = out.clone()
         out = self.dropout(out)
         out = self.fc2(out)
         out += residual
@@ -144,7 +143,6 @@ class MultiDimensionalResNet(nn.Module):
 
     def forward(self, x):
         x = self.dropout(self.fc1(x))
-        x = x.clone()
         x = self.residual_block1(x)
         x = self.residual_block2(x)
         x = self.residual_block3(x)
@@ -158,16 +156,18 @@ def load_artifacts():
     try:
         model_path = 'RESNET.pkl'
         scaler_path = 'scaler.pkl'
-        X_train_scaled_path = 'X_train.pkl'
+        X_train_scaled_path = 'X_train.pkl'  
         model = joblib.load(model_path)
         scaler = joblib.load(scaler_path)
         X_train_scaled = joblib.load(X_train_scaled_path)
-        st.session_state['X_train_scaled'] = X_train_scaled
-        st.session_state['is_data_loaded'] = True
+        
+        # 显式初始化session_state
+        if 'X_train_scaled' not in st.session_state:
+            st.session_state['X_train_scaled'] = X_train_scaled
+            st.session_state['is_data_loaded'] = True
         return model, scaler
     except Exception as e:
         st.error(f"加载模型或标准化器失败：{str(e)}")
-        print(f"加载失败的详细信息: {e}")
         return None, None
 
 
@@ -186,7 +186,7 @@ category_mapping = {
     0: '优'
 }
 
-st.markdown('<div class="subheader">请填写以下气象和污染物数据以进行交通污染预测：</div>', unsafe_allow_html=True)
+st.markdown('<div class="subheader">请填写以下气象和污染物数据以进行空气质量预测：</div>', unsafe_allow_html=True)
 
 # 输入组件
 TEMP = st.number_input("温度（℃）", min_value=-30.0, value=15.0)
@@ -205,7 +205,7 @@ PM10 = st.number_input("PM10 浓度", min_value=0.0, value=70.0)
 def predict():
     try:
         if model is None or scaler is None:
-            st.write(f"<div style='color: red;'>模型或标准化器加载失败</div>", unsafe_allow_html=True)
+            st.error("模型或标准化器未正确加载")
             return
 
         # 获取用户输入并构建特征数组
@@ -227,81 +227,57 @@ def predict():
 
         # 标准化输入
         features_scaled = scaler.transform(features_array)
-        features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
-
-        # 备份张量，以防 shap 操作中出现问题
-        backup_features_tensor = features_tensor.clone()
-
+        
         # 模型预测
         with torch.no_grad():
+            features_tensor = torch.tensor(features_scaled, dtype=torch.float32)
             prediction_logits = model(features_tensor)
             predicted_proba = torch.softmax(prediction_logits, dim=1).numpy()[0]
             predicted_class = np.argmax(predicted_proba)
         predicted_category = category_mapping[predicted_class]
         st.markdown(f"<div class='prediction-result'>预测类别：{predicted_category}</div>", unsafe_allow_html=True)
 
-        # 根据预测结果生成建议
+        # 生成建议
         probability = predicted_proba[predicted_class] * 100
         advice = {
-            '严重污染': f"建议：根据我们的库，该日空气质量为严重污染。模型预测该日为严重污染的概率为 {probability:.1f}%。建议采取防护措施，减少户外活动。",
-            '重度污染': f"建议：根据我们的库，该日空气质量为重度污染。模型预测该日为重度污染的概率为 {probability:.1f}%。建议减少外出，佩戴防护口罩。",
-            '中度污染': f"建议：根据我们的库，该日空气质量为中度污染。模型预测该日为中度污染的概率为 {probability:.1f}%。敏感人群应减少户外活动。",
-            '轻度污染': f"建议：根据我们的库，该日空气质量为轻度污染。模型预测该日为轻度污染的概率为 {probability:.1f}%。可以适当进行户外活动，但仍需注意防护。",
-            '良': f"建议：根据我们的库，此日空气质量为良。模型预测此日空气质量为良的概率为 {probability:.1f}%。可以正常进行户外活动。",
-            '优': f"建议：根据我们的库，该日空气质量为优。模型预测该日空气质量为优的概率为 {probability:.1f}%。空气质量良好，尽情享受户外时光。",
+            '严重污染': f"建议：模型预测为严重污染的概率为 {probability:.1f}%。建议减少外出，做好防护。",
+            '重度污染': f"建议：模型预测为重度污染的概率为 {probability:.1f}%。敏感人群避免外出。",
+            '中度污染': f"建议：模型预测为中度污染的概率为 {probability:.1f}%。建议减少户外活动。",
+            '轻度污染': f"建议：模型预测为轻度污染的概率为 {probability:.1f}%。可适当户外活动，注意防护。",
+            '良': f"建议：模型预测为良的概率为 {probability:.1f}%。适合正常户外活动。",
+            '优': f"建议：模型预测为优的概率为 {probability:.1f}%。空气质量极佳，适合户外活动。",
         }[predicted_category]
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
-        X_train_scaled = st.session_state['X_train_scaled']
+        # 加载背景数据（从session_state或文件）
+        if 'X_train_scaled' not in st.session_state or not st.session_state['is_data_loaded']:
+            X_train_scaled_path = 'X_train_scaled.pkl'
+            X_train_scaled = joblib.load(X_train_scaled_path)
+            st.session_state['X_train_scaled'] = X_train_scaled
+            st.session_state['is_data_loaded'] = True
+        else:
+            X_train_scaled = st.session_state['X_train_scaled']
 
-        # 确保 background_tensor 不需要梯度
-        background_tensor = torch.tensor(X_train_scaled, dtype=torch.float32).clone()
+        # 准备SHAP解释
+        background_sample = X_train_scaled[:100]  # 使用前100个样本作为背景
 
-        # 确保 features_tensor 不需要梯度
-        features_tensor = torch.tensor(features_scaled, dtype=torch.float32).clone()
-
-        # 使用更小的背景数据集样本
-        background_sample = background_tensor[:100]  # 使用前100个样本作为背景
-
-        # 创建解释器前确保模型在eval模式
-        model.eval()
-
-        # 使用 KernelExplainer 替代 DeepExplainer
-        # 首先定义一个包装函数
+        # 定义模型预测包装函数
         def model_predict(x):
-            if isinstance(x, np.ndarray):
-                x = torch.tensor(x, dtype=torch.float32)
+            x_tensor = torch.tensor(x, dtype=torch.float32)
             with torch.no_grad():
-                return model(x).detach().numpy()
+                return model(x_tensor).numpy()
 
-        # 使用 KernelExplainer
-        explainer = shap.KernelExplainer(model_predict, background_sample.numpy())
-
-        # 计算 SHAP 值
-        shap_values = explainer.shap_values(features_tensor.numpy(), nsamples=100)
+        # 初始化KernelExplainer
+        explainer = shap.KernelExplainer(model_predict, background_sample)
+        shap_values = explainer.shap_values(features_scaled, nsamples=100)
 
         # 处理多分类SHAP值
         if isinstance(shap_values, list):
-            # 选择当前预测类别的SHAP值
-            try:
-                shap_values = shap_values[predicted_class]
-            except IndexError as e:
-                st.write(f"IndexError occurred while accessing shap_values[{predicted_class}]: {e}")
-                raise
-        elif len(shap_values.shape) == 3:  # 处理(1,16,6)形状
-            # 选择当前预测类别的解释
-            shap_values = shap_values[0, :, predicted_class]  # 取第一个样本，所有特征，当前类别的SHAP值
+            shap_values = shap_values[predicted_class]
+        else:
+            shap_values = shap_values[..., predicted_class].squeeze()
 
-        # 确保最终是一维数组(11,)
-        if len(shap_values.shape) > 1:
-            shap_values = shap_values.flatten()
-
-        # 验证形状是否正确
-        if shap_values.shape != (11,):
-            st.error(f"SHAP值形状异常 ({shap_values.shape})，无法继续")
-            return
-
-        # 创建DataFrame
+        # 构建特征重要性数据
         shap_importance = pd.DataFrame({
             'feature': FEATURES,
             'shap_value': shap_values
@@ -309,66 +285,36 @@ def predict():
         shap_importance['abs_value'] = np.abs(shap_importance['shap_value'])
         shap_importance = shap_importance.sort_values('abs_value', ascending=False)
 
-        # 准备绘制瀑布图的数据
-        features = shap_importance['feature'].tolist()
-        contributions = shap_importance['shap_value'].tolist()
-
-        # 确保瀑布图的数据是按贡献度绝对值降序排列的
-        sorted_indices = np.argsort(np.abs(contributions))[::-1]
-        features_sorted = [features[i] for i in sorted_indices]
-        contributions_sorted = [contributions[i] for i in sorted_indices]
-
-        min_contribution = min(contributions_sorted)
-
-        # 初始化绘图
-        fig, ax = plt.subplots(figsize=(14, 8))
-
-        # 初始化累积值
-        start = 0
-        prev_contributions = [start]
-
-        # 计算每一步的累积值
-        for i in range(1, len(contributions_sorted)):
-            prev_contributions.append(prev_contributions[-1] + contributions_sorted[i - 1])
-
         # 绘制瀑布图
-        for i in range(len(contributions_sorted)):
-            color = '#ff5050' if contributions_sorted[i] < 0 else '#66b3ff'
-            if i == len(contributions_sorted) - 1:
-                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, zorder=2, hatch='/')
-            else:
-                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, zorder=2)
-
-            plt.text(prev_contributions[i] + contributions_sorted[i] / 2, i, f"{contributions_sorted[i]:.2f}",
-                     ha='center', va='center', fontsize=10, fontproperties=font_prop, color='black')
-
-        # 设置图表属性
-        plt.title(f'预测类型为{predicted_category}时的特征贡献度瀑布图', size=20, fontproperties=font_prop)
-        plt.xlabel('贡献度 (SHAP 值)', fontsize=20, fontproperties=font_prop)
-        plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
-        plt.yticks(size=20, fontproperties=font_prop)
-        plt.xticks(size=20, fontproperties=font_prop)
-        plt.grid(axis='x', linestyle='--', alpha=0.7)
-
-        # 增加边距避免裁剪
-        plt.xlim(left=min_contribution * 1.2, right=max(prev_contributions) + max(contributions_sorted) * 0.8)
-        fig.subplots_adjust(left=0.2, right=0.9, top=0.9, bottom=0.2)
-
+        fig, ax = plt.subplots(figsize=(12, 6))
+        bars = ax.barh(shap_importance['feature'], shap_importance['shap_value'], 
+                       color=['#ff5050' if v<0 else '#66b3ff' for v in shap_importance['shap_value']])
+        
+        # 添加数值标签
+        for bar in bars:
+            length = bar.get_width()
+            ax.text(length + 0.05, bar.get_y() + bar.get_height()/2,
+                    f'{length:.2f}',
+                    va='center')
+        
+        plt.title(f'特征贡献度分析（预测结果：{predicted_category}）', fontproperties=font_prop, size=16)
+        plt.xlabel('SHAP值（贡献度）', fontproperties=font_prop, size=14)
+        plt.ylabel('特征', fontproperties=font_prop, size=14)
+        plt.gca().invert_yaxis()  # 按重要性降序排列
         plt.tight_layout()
 
-        # 保存并在 Streamlit 中展示
-        plt.savefig("shap_waterfall_plot.png", bbox_inches='tight', dpi=1200)
-        st.image("shap_waterfall_plot.png")
+        # 显示图表
+        st.pyplot(fig)
 
-    except ValueError as ve:
-        st.write(f"<div style='color: red;'>预测错误：{ve}</div>", unsafe_allow_html=True)
-    except IndexError as ie:
-        st.write(f"<div style='color: red;'>预测过程中索引错误：{ie}</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
+        st.error(f"预测过程中出现错误：{str(e)}")
+        import traceback
+        st.text(traceback.format_exc())  # 打印详细错误日志
 
 
-if st.button("预测"):
+if st.button("预测", type="primary"):
     predict()
+
+st.markdown('<div class="footer">© 2025 空气质量预测系统</div>', unsafe_allow_html=True)
 
 st.markdown('<div class="footer">© 2025 All rights reserved.</div>', unsafe_allow_html=True)
