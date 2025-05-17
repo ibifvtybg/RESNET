@@ -258,61 +258,66 @@ def predict():
         else:
             X_train_scaled = st.session_state['X_train_scaled']
 
-        # 准备SHAP解释
-        background_sample = X_train_scaled[:100]  # 使用前100个样本作为背景
+        # 准备绘制瀑布图的数据
+        features = shap_importance['feature'].tolist()
+        contributions = shap_importance['shap_value'].tolist()
 
-        # 定义模型预测包装函数
-        def model_predict(x):
-            x_tensor = torch.tensor(x, dtype=torch.float32)
-            with torch.no_grad():
-                return model(x_tensor).numpy()
+        # 确保瀑布图的数据是按贡献度绝对值降序排列的
+        sorted_indices = np.argsort(np.abs(contributions))[::-1]
+        features_sorted = [features[i] for i in sorted_indices]
+        contributions_sorted = [contributions[i] for i in sorted_indices]
 
-        # 初始化KernelExplainer
-        explainer = shap.KernelExplainer(model_predict, background_sample)
-        shap_values = explainer.shap_values(features_scaled, nsamples=100)
+        min_contribution = min(contributions_sorted)
 
-        # 处理多分类SHAP值
-        if isinstance(shap_values, list):
-            shap_values = shap_values[predicted_class]
-        else:
-            shap_values = shap_values[..., predicted_class].squeeze()
+        # 初始化绘图
+        fig, ax = plt.subplots(figsize=(14, 8))
 
-        # 构建特征重要性数据
-        shap_importance = pd.DataFrame({
-            'feature': FEATURES,
-            'shap_value': shap_values
-        })
-        shap_importance['abs_value'] = np.abs(shap_importance['shap_value'])
-        shap_importance = shap_importance.sort_values('abs_value', ascending=False)
+        # 初始化累积值
+        start = 0
+        prev_contributions = [start]
+
+        # 计算每一步的累积值
+        for i in range(1, len(contributions_sorted)):
+            prev_contributions.append(prev_contributions[-1] + contributions_sorted[i - 1])
 
         # 绘制瀑布图
-        fig, ax = plt.subplots(figsize=(12, 6))
-        bars = ax.barh(shap_importance['feature'], shap_importance['shap_value'], 
-                       color=['#ff5050' if v<0 else '#66b3ff' for v in shap_importance['shap_value']])
-        
-        # 添加数值标签
-        for bar in bars:
-            length = bar.get_width()
-            ax.text(length + 0.05, bar.get_y() + bar.get_height()/2,
-                    f'{length:.2f}',
-                    va='center')
-        
-        plt.title(f'特征贡献度分析（预测结果：{predicted_category}）', fontproperties=font_prop, size=16)
-        plt.xlabel('SHAP值（贡献度）', fontproperties=font_prop, size=14)
-        plt.ylabel('特征', fontproperties=font_prop, size=14)
-        plt.gca().invert_yaxis()  # 按重要性降序排列
+        for i in range(len(contributions_sorted)):
+            color = '#ff5050' if contributions_sorted[i] < 0 else '#66b3ff'
+            if i == len(contributions_sorted) - 1:
+                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, zorder=2, hatch='/')
+            else:
+                ax.barh(features_sorted[i], contributions_sorted[i], left=prev_contributions[i], color=color, edgecolor='black', height=0.5, zorder=2)
+
+            plt.text(prev_contributions[i] + contributions_sorted[i] / 2, i, f"{contributions_sorted[i]:.2f}",
+                     ha='center', va='center', fontsize=10, fontproperties=font_prop, color='black')
+
+        # 设置图表属性
+        plt.title(f'预测类型为{predicted_category}时的特征贡献度瀑布图', size=20, fontproperties=font_prop)
+        plt.xlabel('贡献度 (SHAP 值)', fontsize=20, fontproperties=font_prop)
+        plt.ylabel('特征', fontsize=20, fontproperties=font_prop)
+        plt.yticks(size=20, fontproperties=font_prop)
+        plt.xticks(size=20, fontproperties=font_prop)
+        plt.grid(axis='x', linestyle='--', alpha=0.7)
+
+        # 增加边距避免裁剪
+        plt.xlim(left=min_contribution * 1.2, right=max(prev_contributions) + max(contributions_sorted) * 0.8)
+        fig.subplots_adjust(left=0.2, right=0.9, top=0.9, bottom=0.2)
+
         plt.tight_layout()
 
-        # 显示图表
-        st.pyplot(fig)
+        # 保存并在 Streamlit 中展示
+        plt.savefig("shap_waterfall_plot.png", bbox_inches='tight', dpi=1200)
+        st.image("shap_waterfall_plot.png")
 
+    except ValueError as ve:
+        st.write(f"<div style='color: red;'>预测错误：{ve}</div>", unsafe_allow_html=True)
+    except IndexError as ie:
+        st.write(f"<div style='color: red;'>预测过程中索引错误：{ie}</div>", unsafe_allow_html=True)
     except Exception as e:
-        st.error(f"预测过程中出现错误：{str(e)}")
-        import traceback
-        st.text(traceback.format_exc())  # 打印详细错误日志
+        st.write(f"<div style='color: red;'>预测过程中出现意外错误：{e}</div>", unsafe_allow_html=True)
 
 
-if st.button("预测", type="primary"):
+if st.button("预测"):
     predict()
 
-st.markdown('<div class="footer">© 2025 空气质量预测系统</div>', unsafe_allow_html=True)
+st.markdown('<div class="footer">© 2025 All rights reserved.</div>', unsafe_allow_html=True)
