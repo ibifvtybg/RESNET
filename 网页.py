@@ -316,5 +316,3 @@ if st.button("预测", type="primary"):
     predict()
 
 st.markdown('<div class="footer">© 2025 空气质量预测系统</div>', unsafe_allow_html=True)
-
-st.markdown('<div class="footer">© 2025 All rights reserved.</div>', unsafe_allow_html=True)
