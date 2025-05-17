@@ -251,7 +251,7 @@ def predict():
 
         # 加载背景数据（从session_state或文件）
         if 'X_train_scaled' not in st.session_state or not st.session_state['is_data_loaded']:
-            X_train_scaled_path = 'X_train_scaled.pkl'
+            X_train_scaled_path = 'X_train.pkl'
             X_train_scaled = joblib.load(X_train_scaled_path)
             st.session_state['X_train_scaled'] = X_train_scaled
             st.session_state['is_data_loaded'] = True
