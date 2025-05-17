@@ -8,7 +8,6 @@ import shap
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.font_manager import FontProperties
-from retry import retry
 
 # 检查字体文件路径是否存在
 font_path = "SimHei.ttf"
@@ -125,6 +124,7 @@ class ResidualBlock(nn.Module):
     def forward(self, x):
         residual = x.clone()
         out = self.leaky_relu(self.fc1(x))
+        out = out.clone()
         out = self.dropout(out)
         out = self.fc2(out)
         out += residual
@@ -143,6 +143,7 @@ class MultiDimensionalResNet(nn.Module):
 
     def forward(self, x):
         x = self.dropout(self.fc1(x))
+        x = x.clone()
         x = self.residual_block1(x)
         x = self.residual_block2(x)
         x = self.residual_block3(x)
@@ -156,12 +157,10 @@ def load_artifacts():
     try:
         model_path = 'RESNET.pkl'
         scaler_path = 'scaler.pkl'
-        X_train_scaled_path = 'X_train_scaled.pkl'  # 修正文件名（假设正确名称为X_train_scaled.pkl）
+        X_train_path = 'X_train.pkl'
         model = joblib.load(model_path)
         scaler = joblib.load(scaler_path)
-        X_train_scaled = joblib.load(X_train_scaled_path)
-        
-        # 显式初始化session_state
+        X_train_scaled = joblib.load(X_train_path)
         if 'X_train_scaled' not in st.session_state:
             st.session_state['X_train_scaled'] = X_train_scaled
             st.session_state['is_data_loaded'] = True
@@ -205,7 +204,7 @@ PM10 = st.number_input("PM10 浓度", min_value=0.0, value=70.0)
 def predict():
     try:
         if model is None or scaler is None:
-            st.write(f"<div style='color: red;'>模型或标准化器加载失败</div>", unsafe_allow_html=True)
+            st.error("模型或标准化器未正确加载")
             return
 
         # 获取用户输入并构建特征数组
@@ -229,9 +228,6 @@ def predict():
         features_scaled = scaler.transform(features_array)
         features_tensor = torch.tensor(features_scaled, dtype=torch.float32, requires_grad=True).clone()
 
-        # 备份张量，以防 shap 操作中出现问题
-        backup_features_tensor = features_tensor.clone()
-
         # 模型预测
         with torch.no_grad():
             prediction_logits = model(features_tensor)
@@ -252,6 +248,12 @@ def predict():
         }[predicted_category]
         st.markdown(f"<div class='advice-text'>{advice}</div>", unsafe_allow_html=True)
 
+        # 加载背景数据
+        if 'X_train_scaled' not in st.session_state or not st.session_state['is_data_loaded']:
+            X_train_path = 'X_train.pkl'
+            X_train_scaled = joblib.load(X_train_path)
+            st.session_state['X_train_scaled'] = X_train_scaled
+            st.session_state['is_data_loaded'] = True
         X_train_scaled = st.session_state['X_train_scaled']
 
         # 确保 background_tensor 不需要梯度
@@ -282,14 +284,8 @@ def predict():
 
         # 处理多分类SHAP值
         if isinstance(shap_values, list):
-            # 选择当前预测类别的SHAP值
-            try:
-                shap_values = shap_values[predicted_class]
-            except IndexError as e:
-                st.write(f"IndexError occurred while accessing shap_values[{predicted_class}]: {e}")
-                raise
+            shap_values = shap_values[predicted_class]
         elif len(shap_values.shape) == 3:  # 处理(1,16,6)形状
-            # 选择当前预测类别的解释
             shap_values = shap_values[0, :, predicted_class]  # 取第一个样本，所有特征，当前类别的SHAP值
 
         # 确保最终是一维数组(11,)
